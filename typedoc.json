@@ -1,0 +1,12 @@
+{
+  "entryPoints": ["src/main", "src/renderer", "src/common"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "readme": "README.md",
+  "name": "electron-direct-ipc",
+  "tsconfig": "tsconfig.json"
+}

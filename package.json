@@ -1,0 +1,85 @@
+{
+  "name": "electron-direct-ipc",
+  "version": "1.0.0",
+  "description": "Type-safe, high-performance inter-process communication for Electron applications.",
+  "main": "dist/main/DirectIpcMain.js",
+  "module": "dist/main/DirectIpcMain.js",
+  "types": "dist/main/DirectIpcMain.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/main/DirectIpcMain.js",
+      "require": "./dist/main/DirectIpcMain.js",
+      "types": "./dist/main/DirectIpcMain.d.ts"
+    },
+    "./main": {
+      "import": "./dist/main/DirectIpcMain.js",
+      "require": "./dist/main/DirectIpcMain.js",
+      "types": "./dist/main/DirectIpcMain.d.ts"
+    },
+    "./renderer": {
+      "import": "./dist/renderer/DirectIpcRenderer.js",
+      "require": "./dist/renderer/DirectIpcRenderer.js",
+      "types": "./dist/renderer/DirectIpcRenderer.d.ts"
+    },
+    "./renderer/throttled": {
+      "import": "./dist/renderer/DirectIpcThrottled.js",
+      "require": "./dist/renderer/DirectIpcThrottled.js",
+      "types": "./dist/renderer/DirectIpcThrottled.d.ts"
+    },
+    "./common": {
+      "import": "./dist/common/DirectIpcCommunication.js",
+      "require": "./dist/common/DirectIpcCommunication.js",
+      "types": "./dist/common/DirectIpcCommunication.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "directories": {},
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint 'src/**/*.ts'",
+    "lint:fix": "eslint --fix 'src/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "type-check": "tsc --noEmit",
+    "docs": "typedoc --options typedoc.json",
+    "prepare": "npm run build",
+    "docs:publish": "gh-pages -d docs/api"
+  },
+  "keywords": [
+    "electron",
+    "ipc",
+    "typescript",
+    "messagechannel",
+    "renderer",
+    "main-process"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourorg/electron-direct-ipc.git"
+  },
+  "author": "Jeff Robbins <jeff@jjeff.com>",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
+    "electron": "^39.2.4",
+    "electron-playwright-helpers": "^1.8.2",
+    "eslint": "^9.39.1",
+    "gh-pages": "^6.3.0",
+    "prettier": "^3.7.3",
+    "typedoc": "^0.28.15",
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1"
+  }
+}
