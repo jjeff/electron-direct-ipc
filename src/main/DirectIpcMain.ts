@@ -5,41 +5,41 @@ import {
   MessageChannelMain,
   webContents,
   WebContents,
-} from 'electron'
+} from 'electron';
 import {
   DIRECT_IPC_CHANNELS,
   DirectIpcMapUpdateMessage,
-  DirectIpcTarget,
   DirectIpcPortMessage,
-} from '../common/DirectIpcCommunication'
-
-/**
- * Logger interface for DirectIpc
- */
-export interface DirectIpcLogger {
-  silly?: (message: string, ...args: unknown[]) => void
-  debug?: (message: string, ...args: unknown[]) => void
-  info?: (message: string, ...args: unknown[]) => void
-  warn?: (message: string, ...args: unknown[]) => void
-  error?: (message: string, ...args: unknown[]) => void
-}
-
-/**
- * Console-based logger fallback
- */
-const consoleLogger: DirectIpcLogger = {
-  silly: () => {}, // console.debug would be too verbose
-  debug: () => {}, // console.debug would be too verbose
-  info: console.log,
-  warn: console.warn,
-  error: console.error,
-}
+  DirectIpcTarget,
+} from '../common/DirectIpcCommunication.js';
+import { consoleLogger } from "../common/DirectIpcLogger.js";
 
 /**
  * Main process DirectIpc coordinator
  * Manages the registry of renderer processes and facilitates MessagePort creation
  */
 export class DirectIpcMain {
+  /** Singleton instance */
+  private static _instance: DirectIpcMain | null = null
+
+  /**
+   * Get the singleton instance of DirectIpcMain
+   */
+  public static instance(options = {} as Partial<Pick<DirectIpcMain['d'], 'log'>>): DirectIpcMain {
+    if (!this._instance) {
+      this._instance = new DirectIpcMain(options)
+    } else {
+      if (options.log) {
+        this._instance.d.log = options.log
+      }
+    }
+    return this._instance
+  }
+
+  public static init(options = {} as Partial<Pick<DirectIpcMain['d'], 'log'>>): DirectIpcMain {
+    return this.instance(options);
+  } 
+
   /** Dependencies */
   private d = {
     app: app,

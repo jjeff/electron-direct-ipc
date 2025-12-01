@@ -2,34 +2,34 @@
   "name": "electron-direct-ipc",
   "version": "1.0.0",
   "description": "Type-safe, high-performance inter-process communication for Electron applications.",
-  "main": "dist/main/DirectIpcMain.js",
-  "module": "dist/main/DirectIpcMain.js",
-  "types": "dist/main/DirectIpcMain.d.ts",
+  "main": "dist/cjs/main/DirectIpcMain.js",
+  "module": "dist/esm/main/DirectIpcMain.js",
+  "types": "dist/esm/main/DirectIpcMain.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/main/DirectIpcMain.js",
-      "require": "./dist/main/DirectIpcMain.js",
-      "types": "./dist/main/DirectIpcMain.d.ts"
+      "import": "./dist/esm/main/DirectIpcMain.js",
+      "require": "./dist/cjs/main/DirectIpcMain.js",
+      "types": "./dist/esm/main/DirectIpcMain.d.ts"
     },
     "./main": {
-      "import": "./dist/main/DirectIpcMain.js",
-      "require": "./dist/main/DirectIpcMain.js",
-      "types": "./dist/main/DirectIpcMain.d.ts"
+      "import": "./dist/esm/main/DirectIpcMain.js",
+      "require": "./dist/cjs/main/DirectIpcMain.js",
+      "types": "./dist/esm/main/DirectIpcMain.d.ts"
     },
     "./renderer": {
-      "import": "./dist/renderer/DirectIpcRenderer.js",
-      "require": "./dist/renderer/DirectIpcRenderer.js",
-      "types": "./dist/renderer/DirectIpcRenderer.d.ts"
+      "import": "./dist/esm/renderer/DirectIpcRenderer.js",
+      "require": "./dist/cjs/renderer/DirectIpcRenderer.js",
+      "types": "./dist/esm/renderer/DirectIpcRenderer.d.ts"
     },
     "./renderer/throttled": {
-      "import": "./dist/renderer/DirectIpcThrottled.js",
-      "require": "./dist/renderer/DirectIpcThrottled.js",
-      "types": "./dist/renderer/DirectIpcThrottled.d.ts"
+      "import": "./dist/esm/renderer/DirectIpcThrottled.js",
+      "require": "./dist/cjs/renderer/DirectIpcThrottled.js",
+      "types": "./dist/esm/renderer/DirectIpcThrottled.d.ts"
     },
     "./common": {
-      "import": "./dist/common/DirectIpcCommunication.js",
-      "require": "./dist/common/DirectIpcCommunication.js",
-      "types": "./dist/common/DirectIpcCommunication.d.ts"
+      "import": "./dist/esm/common/DirectIpcCommunication.js",
+      "require": "./dist/cjs/common/DirectIpcCommunication.js",
+      "types": "./dist/esm/common/DirectIpcCommunication.d.ts"
     }
   },
   "files": [
@@ -38,20 +38,26 @@
   ],
   "directories": {},
   "scripts": {
-    "build": "tsc",
-    "lint": "eslint 'src/**/*.ts'",
-    "lint:fix": "eslint --fix 'src/**/*.ts'",
-    "format": "prettier --write 'src/**/*.ts'",
+    "build": "npm run build:esm && npm run build:cjs && npm run build:pkg",
+    "build:esm": "tsc",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:pkg": "echo '{\"type\":\"module\"}' > dist/esm/package.json && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
+    "build:e2e": "npm run build && cd test-app && npm install && npm run build",
+    "e2e": "npm run build && cd test-app && npm install && npm run start",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint --fix \"src/**/*.ts\"",
+    "format": "prettier --write \"{src,tests,test-app}/**/*.{ts,js,tsx}\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:debug": "playwright test --debug",
-    "test:e2e:headed": "playwright test --headed",
+    "test:e2e": "npm run build:e2e && playwright test",
+    "test:e2e:debug": "npm run build:e2e && playwright test --debug",
+    "test:e2e:headed": "npm run build:e2e && playwright test --headed",
     "type-check": "tsc --noEmit",
     "docs": "typedoc --options typedoc.json",
-    "prepare": "npm run build",
-    "docs:publish": "gh-pages -d docs/api"
+    "docs:publish": "gh-pages -d docs/api",
+    "prepare": "husky",
+    "semantic-release": "semantic-release"
   },
   "keywords": [
     "electron",
@@ -63,13 +69,19 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourorg/electron-direct-ipc.git"
+    "url": "https://github.com/jjeff/electron-direct-ipc.git"
   },
   "author": "Jeff Robbins <jeff@jjeff.com>",
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@playwright/test": "^1.57.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/npm": "^12.0.2",
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
@@ -77,9 +89,12 @@
     "electron-playwright-helpers": "^1.8.2",
     "eslint": "^9.39.1",
     "gh-pages": "^6.3.0",
+    "husky": "^9.1.7",
     "prettier": "^3.7.3",
+    "semantic-release": "^24.2.9",
     "typedoc": "^0.28.15",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1",
     "vitest": "^1.6.1"
   }
 }

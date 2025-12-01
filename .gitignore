@@ -7,3 +7,21 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Root level TypeScript artifacts (config files should not be compiled)
+/*.d.ts
+/*.d.ts.map
+/*.js
+/*.js.map
+!playwright.config.ts
+!vitest.config.ts
+
+# Compiled test files (tests should not be transpiled)
+tests/**/*.js
+tests/**/*.d.ts
+tests/**/*.js.map
+tests/**/*.d.ts.map
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+playwright/.cache/

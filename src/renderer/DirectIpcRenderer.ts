@@ -1,8 +1,3 @@
-/**
- * Utility type to "prettify" or flatten a type for better inference
- */
-type Prettify<T> = { [K in keyof T]: T[K] } & {}
-
 import { ipcRenderer } from 'electron'
 import { EventEmitter } from 'events'
 import {
@@ -10,32 +5,21 @@ import {
   DirectIpcMapUpdateMessage,
   DirectIpcPortMessage,
   DirectIpcTarget,
-} from '../common/DirectIpcCommunication'
-import { DirectIpcThrottled } from './DirectIpcThrottled'
-
-/**
- * Logger interface for DirectIpc
- */
-export interface DirectIpcLogger {
-  silly?: (message: string, ...args: unknown[]) => void
-  debug?: (message: string, ...args: unknown[]) => void
-  info?: (message: string, ...args: unknown[]) => void
-  warn?: (message: string, ...args: unknown[]) => void
-  error?: (message: string, ...args: unknown[]) => void
-}
-
-/**
- * Console-based logger fallback
- */
-const consoleLogger: DirectIpcLogger = {
-  silly: () => {}, // console.debug would be too verbose
-  debug: () => {}, // console.debug would be too verbose
-  info: console.log,
-  warn: console.warn,
-  error: console.error,
-}
+} from '../common/DirectIpcCommunication.js'
+import {
+  DirectIpcLogger,
+  consoleLogger,
+} from '../common/DirectIpcLogger.js'
+import { DirectIpcThrottled } from './DirectIpcThrottled.js'
 
 type Awaitable<T> = T | Promise<T>
+
+/**
+ * Utility type to expand/prettify complex types in IDE tooltips
+ */
+type Prettify<T> = {
+  [K in keyof T]: T[K]
+} & {}
 
 export interface EventMap {
   [key: string]: (...args: any[]) => any
@@ -54,6 +38,7 @@ export interface DirectIpcRendererOptions<
 > {
   log?: DirectIpcLogger
   identifier?: TIdentifierStrings
+  defaultTimeout?: number
 }
 
 /**
@@ -61,6 +46,13 @@ export interface DirectIpcRendererOptions<
  */
 export interface DirectIpcRendererDependencies {
   ipcRenderer?: typeof ipcRenderer
+}
+
+/**
+ * Options for invoke calls
+ */
+export interface InvokeOptions {
+  timeout?: number
 }
 
 /**
@@ -173,8 +165,7 @@ export class DirectIpcRenderer<
   TIdentifierStrings extends string = string,
 > extends (EventEmitter as {
   new <TMessageMap extends EventMap>(): Prettify<
-    // TypeScript: Loosen type constraint for EventEmitter
-    TypedEventEmitter<any>
+    TypedEventEmitter<WithSender<TMessageMap>>
   >
 })<TMessageMap> {
   // singleton
@@ -198,7 +189,7 @@ export class DirectIpcRenderer<
       DirectIpcRenderer._instance = DirectIpcRenderer._createInstance(options)
     }
     if (options) {
-      const { identifier, log } = options
+      const { identifier, log, defaultTimeout } = options
       if (identifier) {
         DirectIpcRenderer._instance.setIdentifier(identifier).catch((error) => {
           DirectIpcRenderer._instance?.log.error?.(
@@ -210,9 +201,11 @@ export class DirectIpcRenderer<
       if (log) {
         DirectIpcRenderer._instance.log = log
       }
+      if (defaultTimeout !== undefined) {
+        DirectIpcRenderer._instance.setDefaultTimeout(defaultTimeout)
+      }
     }
-    // TypeScript: Loosen type assertion for singleton
-    return DirectIpcRenderer._instance as unknown as DirectIpcRenderer<
+    return DirectIpcRenderer._instance as DirectIpcRenderer<
       TMessageMap,
       TInvokeMap,
       TProcessIdentifier
@@ -306,6 +299,11 @@ export class DirectIpcRenderer<
     }
 
     this.log = options.log ?? consoleLogger
+
+    // Set default timeout from options if provided
+    if (options.defaultTimeout !== undefined) {
+      this.defaultTimeout = options.defaultTimeout
+    }
 
     this.setupIpcListeners()
     this.subscribe(options.identifier)
@@ -456,22 +454,12 @@ export class DirectIpcRenderer<
     }
 
     // Set up port close handler
-    // Polyfill port close handler for compatibility
-    if ('onclose' in port) {
-      (port as any).onclose = () => {
-        this.log.silly?.(
-          `DirectIpcRenderer::port.onclose - port closed for webContentsId ${senderInfo.webContentsId}`
-        )
-        this.portCache.delete(senderInfo.webContentsId)
-      }
-    } else if ('addEventListener' in port) {
-      (port as any).addEventListener('close', () => {
-        this.log.silly?.(
-          `DirectIpcRenderer::port.onclose - port closed for webContentsId ${senderInfo.webContentsId}`
-        )
-        this.portCache.delete(senderInfo.webContentsId)
-      })
-    }
+    port.addEventListener('close', () => {
+      this.log.silly?.(
+        `DirectIpcRenderer::port.close - port closed for webContentsId ${senderInfo.webContentsId}`
+      )
+      this.portCache.delete(senderInfo.webContentsId)
+    })
 
     port.start()
 
@@ -512,10 +500,7 @@ export class DirectIpcRenderer<
         )
 
         if (matches.length === 1) {
-          if (matches[0] && matches[0].webContentsId !== undefined) {
-            return matches[0].webContentsId
-          }
-          return undefined
+          return matches[0]!.webContentsId
         } else if (matches.length > 1) {
           throw new Error(
             'DirectIpcRenderer::Multiple matches found for identifier regex'
@@ -538,10 +523,7 @@ export class DirectIpcRenderer<
         const matches = this.map.filter((t) => regex.test(t.url))
 
         if (matches.length === 1) {
-          if (matches[0] && matches[0].webContentsId !== undefined) {
-            return matches[0].webContentsId
-          }
-          return undefined
+          return matches[0]!.webContentsId
         } else if (matches.length > 1) {
           throw new Error(
             'DirectIpcRenderer::Multiple matches found for URL regex'
@@ -778,13 +760,24 @@ export class DirectIpcRenderer<
   async invokeWebContentsId<T extends keyof TInvokeMap>(
     webContentsId: number,
     channel: T,
-    timeout?: number,
-    ...args: TInvokeMap[T] extends (...args: infer P) => any ? P : never
+    ...args: [
+      ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
+      options?: InvokeOptions,
+    ]
   ): Promise<
     TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
   > {
     const port = await this.getPort({ webContentsId })
-    return this.invokeOnPort(port, channel as string, timeout, ...args)
+    // Extract options from the last argument if it's an InvokeOptions object
+    const lastArg = args[args.length - 1]
+    const isOptionsObject =
+      lastArg &&
+      typeof lastArg === 'object' &&
+      !Array.isArray(lastArg) &&
+      'timeout' in lastArg
+    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
+    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
+    return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
   }
 
   /**
@@ -794,13 +787,24 @@ export class DirectIpcRenderer<
   async invokeIdentifier<T extends keyof TInvokeMap>(
     identifier: TIdentifierStrings | RegExp,
     channel: T,
-    timeout?: number,
-    ...args: TInvokeMap[T] extends (...args: infer P) => any ? P : never
+    ...args: [
+      ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
+      options?: InvokeOptions,
+    ]
   ): Promise<
     TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
   > {
     const port = await this.getPort({ identifier })
-    return this.invokeOnPort(port, channel as string, timeout, ...args)
+    // Extract options from the last argument if it's an InvokeOptions object
+    const lastArg = args[args.length - 1]
+    const isOptionsObject =
+      lastArg &&
+      typeof lastArg === 'object' &&
+      !Array.isArray(lastArg) &&
+      'timeout' in lastArg
+    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
+    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
+    return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
   }
 
   /**
@@ -809,13 +813,24 @@ export class DirectIpcRenderer<
   async invokeUrl<T extends keyof TInvokeMap>(
     url: string | RegExp,
     channel: T,
-    timeout?: number,
-    ...args: TInvokeMap[T] extends (...args: infer P) => any ? P : never
+    ...args: [
+      ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
+      options?: InvokeOptions,
+    ]
   ): Promise<
     TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
   > {
     const port = await this.getPort({ url })
-    return this.invokeOnPort(port, channel as string, timeout, ...args)
+    // Extract options from the last argument if it's an InvokeOptions object
+    const lastArg = args[args.length - 1]
+    const isOptionsObject =
+      lastArg &&
+      typeof lastArg === 'object' &&
+      !Array.isArray(lastArg) &&
+      'timeout' in lastArg
+    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
+    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
+    return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
   }
 
   /**
@@ -824,11 +839,11 @@ export class DirectIpcRenderer<
   private async invokeOnPort<T>(
     port: MessagePort,
     channel: string,
-    timeout?: number,
+    options?: InvokeOptions,
     ...args: unknown[]
   ): Promise<T> {
     const requestId = `${++this.requestIdCounter}-${Date.now()}`
-    const timeoutMs = timeout ?? this.defaultTimeout
+    const timeoutMs = options?.timeout ?? this.defaultTimeout
 
     this.log.silly?.('DirectIpcRenderer::invoke - invoking channel')
 

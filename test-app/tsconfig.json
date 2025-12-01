@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2020",
+    "strict": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "electron-direct-ipc": ["../dist/cjs/index.d.ts"],
+      "electron-direct-ipc/*": ["../dist/cjs/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
+}

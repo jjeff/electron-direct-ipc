@@ -401,7 +401,6 @@ describe('DirectIpc Renderer Integration Tests', () => {
       const result = await renderer1.invokeIdentifier(
         'output',
         'get-data',
-        undefined,
         'user-123'
       )
 
@@ -421,7 +420,6 @@ describe('DirectIpc Renderer Integration Tests', () => {
         renderer1.invokeIdentifier(
           'output',
           'get-data',
-          undefined,
           'invalid-id'
         )
       ).rejects.toThrow('User invalid-id not found')
@@ -443,9 +441,9 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke multiple handlers concurrently
       const [result1, result2, result3] = await Promise.all([
-        renderer1.invokeIdentifier('output', 'calculate', undefined, 5, 3),
-        renderer1.invokeIdentifier('output', 'echo', undefined, 'hello'),
-        renderer1.invokeIdentifier('output', 'calculate', undefined, 10, 20),
+        renderer1.invokeIdentifier('output', 'calculate', 5, 3),
+        renderer1.invokeIdentifier('output', 'echo', 'hello'),
+        renderer1.invokeIdentifier('output', 'calculate', 10, 20),
       ])
 
       expect(result1).toBe(8)
@@ -465,7 +463,6 @@ describe('DirectIpc Renderer Integration Tests', () => {
       const result = await renderer1.throttled.invokeIdentifier(
         'output',
         'calculate',
-        undefined,
         5,
         7
       )
@@ -514,8 +511,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke in both directions
       const [result1, result2] = await Promise.all([
-        renderer1.invokeIdentifier('output', 'echo', undefined, 'hello'),
-        renderer2.invokeIdentifier('controller', 'echo', undefined, 'world'),
+        renderer1.invokeIdentifier('output', 'echo', 'hello'),
+        renderer2.invokeIdentifier('controller', 'echo', 'world'),
       ])
 
       expect(result1).toBe('R2: hello')

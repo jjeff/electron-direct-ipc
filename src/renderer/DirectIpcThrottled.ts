@@ -1,12 +1,12 @@
+import { DirectIpcLogger } from '../common/index.js'
+import { DirectIpcTarget } from '../common/DirectIpcCommunication.js'
 import {
+  DirectIpcEventMap,
   DirectIpcRenderer,
   EventMap,
   InvokeMap,
-  DirectIpcLogger,
   TypedEventEmitter,
-  DirectIpcEventMap,
-} from './DirectIpcRenderer'
-import { DirectIpcTarget } from '../common/DirectIpcCommunication'
+} from './DirectIpcRenderer.js'
 
 /**
  * Prepends 'sender: DirectIpcTarget' to every handler function in an EventMap

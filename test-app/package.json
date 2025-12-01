@@ -1,12 +1,15 @@
 {
-  "name": "electron-direct-ipc-e2e-app",
+  "name": "electron-direct-ipc-test-app",
   "version": "1.0.0",
-  "description": "Minimal Electron app for E2E testing of electron-direct-ipc.",
+  "description": "Minimal Electron app for testing electron-direct-ipc.",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/index.html dist/",
     "start": "npm run build && electron dist/main.js",
     "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "electron-direct-ipc": "file:.."
   },
   "devDependencies": {
     "electron": "^39.2.4",

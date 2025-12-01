@@ -1,11 +1,11 @@
-
-[![API Docs](https://img.shields.io/badge/API%20Docs-typedoc-blue?logo=typescript&labelColor=222)](https://yourorg.github.io/electron-direct-ipc/)
+[![API Docs](https://img.shields.io/badge/API%20Docs-typedoc-blue?logo=typescript&labelColor=222)](https://jjeff.github.io/electron-direct-ipc/)
+[![semantic-release: conventionalcommits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 
 # Electron Direct IPC
 
 **Type-safe, high-performance inter-process communication for Electron applications**
 
-Electron Direct IPC provides direct renderer-to-renderer communication via MessageChannel, bypassing the main process for improved performance and reduced latency. It's modeled after Electron's ipcRenderer/ipcMain API for familiarity. With full TypeScript support (including  send/receive and invoke/handle message/argument/return types), automatic message coalescing, and a clean API, it's designed for real-time applications that need fast, reliable IPC.
+Electron Direct IPC provides direct renderer-to-renderer communication via MessageChannel, bypassing the main process for improved performance and reduced latency. It's modeled after Electron's ipcRenderer/ipcMain API for familiarity. With full TypeScript support (including send/receive and invoke/handle message/argument/return types), automatic message coalescing, and a clean API, it's designed for real-time applications that need fast, reliable IPC.
 
 ## Features
 
@@ -15,7 +15,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 - 🎯 **Flexible Targeting** - Send by identifier, webContentsId, or URL pattern
 - 🔄 **Bidirectional** - Request/response with async invoke/handle pattern
 - 📡 **Event-Driven** - Built on EventEmitter with automatic lifecycle management
-- 🧪 **Well Tested** - 71 unit and integration tests with full coverage
+- 🧪 **Well Tested** - Comprehensive unit, integration, and E2E tests with full coverage
 
 ## Table of Contents
 
@@ -35,7 +35,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 ## Installation
 
 ```bash
-npm install direct-ipc
+npm install electron-direct-ipc
 ```
 
 Or if this is part of your Electron monorepo:
@@ -50,7 +50,7 @@ Or if this is part of your Electron monorepo:
 
 ```typescript
 // main.ts
-import { DirectIpcMain } from 'direct-ipc/main'
+import { DirectIpcMain } from 'electron-direct-ipc/main'
 
 const directIpcMain = new DirectIpcMain()
 
@@ -69,7 +69,7 @@ type MyMessages = {
 
 type MyInvokes = {
   'get-user': (userId: string) => Promise<{ id: string; name: string }>
-  'calculate': (a: number, b: number) => Promise<number>
+  calculate: (a: number, b: number) => Promise<number>
 }
 
 type WindowIds = 'controller' | 'output' | 'thumbnails'
@@ -79,10 +79,10 @@ type WindowIds = 'controller' | 'output' | 'thumbnails'
 
 ```typescript
 // controller-renderer.ts
-import { DirectIpcRenderer } from 'direct-ipc/renderer'
+import { DirectIpcRenderer } from 'electron-direct-ipc/renderer'
 
 const directIpc = DirectIpcRenderer.instance<MyMessages, MyInvokes, WindowIds>({
-  identifier: 'controller'
+  identifier: 'controller',
 })
 
 // Send a message with multiple arguments
@@ -97,10 +97,10 @@ for (let i = 0; i < 1000; i++) {
 
 ```typescript
 // output-renderer.ts
-import { DirectIpcRenderer } from 'direct-ipc/renderer'
+import { DirectIpcRenderer } from 'electron-direct-ipc/renderer'
 
 const directIpc = DirectIpcRenderer.instance<MyMessages, MyInvokes, WindowIds>({
-  identifier: 'output'
+  identifier: 'output',
 })
 
 // Listen for messages
@@ -121,7 +121,7 @@ directIpc.handle('get-user', async (sender, userId) => {
 })
 
 // Invoke another renderer
-const result = await directIpc.invokeIdentifier('controller', 'calculate', undefined, 5, 10)
+const result = await directIpc.invokeIdentifier('controller', 'calculate', 5, 10)
 console.log(result) // 15
 ```
 
@@ -170,12 +170,14 @@ await directIpc.sendToUrl(/^settings:\/\//, 'theme-changed', 'dark')
 DirectIPC provides two communication modes:
 
 **Non-Throttled (default)** - Every message is delivered
+
 ```typescript
 // Every message sent
 directIpc.sendToIdentifier('output', 'button-clicked')
 ```
 
 **Throttled** - Only latest value per microtask is delivered (lossy)
+
 ```typescript
 // Only the last value (999) is sent
 for (let i = 0; i < 1000; i++) {
@@ -217,7 +219,7 @@ Main class for renderer process communication.
 // Singleton pattern (recommended)
 const directIpc = DirectIpcRenderer.instance<TMessages, TInvokes, TIdentifiers>({
   identifier: 'my-window',
-  log: customLogger
+  log: customLogger,
 })
 
 // For testing (creates new instance)
@@ -360,12 +362,14 @@ Accessed via `directIpc.throttled` property. Provides lossy message coalescing f
 #### When to Use Throttled
 
 ✅ **Use throttled when:**
+
 - Sending high-frequency state updates (position, volume, progress)
 - Only the latest value matters (replaceable state)
 - Experiencing backpressure (sender faster than receiver)
 - UI updates that can safely skip intermediate frames
 
 ❌ **Don't use throttled when:**
+
 - Every message is unique and important
 - Messages represent discrete events
 - Order matters for correctness
@@ -388,7 +392,7 @@ directIpc.throttled.on('position', (sender, x, y) => {
 
 // Proxy methods (non-throttled)
 directIpc.throttled.handle('get-data', async (sender, id) => data)
-await directIpc.throttled.invokeIdentifier('output', 'calculate', undefined, a, b)
+await directIpc.throttled.invokeIdentifier('output', 'calculate', a, b)
 
 // Access underlying directIpc
 directIpc.throttled.directIpc.sendToIdentifier('output', 'important-event')
@@ -400,6 +404,7 @@ directIpc.throttled.localEvents.on('target-added', (target) => {})
 #### How Throttling Works
 
 **Send-side coalescing:**
+
 ```typescript
 // In one event loop tick:
 directIpc.throttled.sendToIdentifier('output', 'position', 1, 1)
@@ -411,6 +416,7 @@ directIpc.throttled.sendToIdentifier('output', 'position', 3, 3)
 ```
 
 **Receive-side coalescing:**
+
 ```typescript
 // Renderer receives many messages in one tick
 // Internal handler queues them all
@@ -426,11 +432,11 @@ directIpc.throttled.on('position', (sender, x, y) => {
 Coordinates MessageChannel connections between renderers.
 
 ```typescript
-import { DirectIpcMain } from 'direct-ipc/main'
+import { DirectIpcMain } from 'electron-direct-ipc/main'
 
 // Create singleton instance
 const directIpcMain = new DirectIpcMain({
-  log: customLogger // optional
+  log: customLogger, // optional
 })
 
 // That's it! DirectIpcMain automatically:
@@ -479,7 +485,7 @@ directIpc.handle('get-project-data', async (sender, projectId) => {
   return {
     id: project.id,
     name: project.name,
-    songs: project.songs
+    songs: project.songs,
   }
 })
 
@@ -534,12 +540,7 @@ directIpc.handle('risky-operation', async (sender, data) => {
 
 // Caller handles rejection
 try {
-  const result = await directIpc.invokeIdentifier(
-    'worker',
-    'risky-operation',
-    undefined,
-    myData
-  )
+  const result = await directIpc.invokeIdentifier('worker', 'risky-operation', myData)
 } catch (error) {
   console.error('Operation failed:', error.message)
 }
@@ -550,7 +551,10 @@ try {
 ```typescript
 // Get all available renderers
 const targets = directIpc.getMap()
-console.log('Available windows:', targets.map(t => t.identifier))
+console.log(
+  'Available windows:',
+  targets.map((t) => t.identifier)
+)
 
 // Listen for new windows
 directIpc.localEvents.on('target-added', (target) => {
@@ -571,12 +575,14 @@ directIpc.localEvents.on('target-removed', (target) => {
 ### Choosing Throttled vs Non-Throttled
 
 **Use regular `directIpc` for:**
+
 - User actions (clicks, keypresses)
 - State changes (song changed, clip added)
 - Commands (play, pause, stop)
 - Discrete events that must all be delivered
 
 **Use `directIpc.throttled` for:**
+
 - Mouse/cursor position (60+ Hz)
 - Playback position (30-60 Hz)
 - Volume levels (real-time)
@@ -585,15 +591,16 @@ directIpc.localEvents.on('target-removed', (target) => {
 
 ### Latency Characteristics
 
-| Method | Latency | Delivery | Use Case |
-|--------|---------|----------|----------|
-| `directIpc.send*` | ~0ms | Guaranteed | Events, commands |
-| `directIpc.throttled.send*` | ~1ms | Lossy (latest only) | State updates |
-| `directIpc.invoke*` | ~1-5ms | Guaranteed | RPC calls |
+| Method                      | Latency | Delivery            | Use Case         |
+| --------------------------- | ------- | ------------------- | ---------------- |
+| `directIpc.send*`           | ~0ms    | Guaranteed          | Events, commands |
+| `directIpc.throttled.send*` | ~1ms    | Lossy (latest only) | State updates    |
+| `directIpc.invoke*`         | ~1-5ms  | Guaranteed          | RPC calls        |
 
 ### Memory Usage
 
 DirectIPC is designed to be lightweight:
+
 - DirectIpcRenderer: ~8KB per instance
 - DirectIpcThrottled: ~2KB per instance (auto-created)
 - MessageChannel: ~1KB per connection
@@ -602,6 +609,7 @@ DirectIPC is designed to be lightweight:
 ### Benchmarks
 
 On a modern laptop (M1 MacBook):
+
 - Send 1000 non-throttled messages: ~2ms
 - Send 1000 throttled messages: ~2ms (but only 1 delivered)
 - Invoke round-trip: ~1.5ms average
@@ -614,14 +622,14 @@ DirectIPC includes comprehensive test utilities.
 ### Unit Testing
 
 ```typescript
-import { DirectIpcRenderer } from 'direct-ipc/renderer'
+import { DirectIpcRenderer } from 'electron-direct-ipc/renderer'
 import { describe, it, expect, vi } from 'vitest'
 
 describe('My component', () => {
   it('should send message when button clicked', async () => {
     const mockIpcRenderer = {
       on: vi.fn(),
-      invoke: vi.fn().mockResolvedValue([])
+      invoke: vi.fn().mockResolvedValue([]),
     }
 
     const directIpc = DirectIpcRenderer._createInstance(
@@ -642,9 +650,11 @@ describe('My component', () => {
 
 ### Integration Testing
 
-See [DirectIpc.integration.test.ts](../tests/DirectIpc.integration.test.ts) for examples of testing full renderer-to-renderer communication with MessageChannel.
+See [DirectIpc.integration.test.ts](tests/DirectIpc.integration.test.ts) for examples of testing full renderer-to-renderer communication with MessageChannel.
 
 ### E2E Testing with Playwright
+
+The project includes 21 comprehensive E2E tests covering window-to-window communication, throttled messaging, and page reload scenarios. See [tests/e2e/example.spec.ts](tests/e2e/example.spec.ts) for the full test suite.
 
 ```typescript
 import { test, expect } from '@playwright/test'
@@ -752,18 +762,21 @@ sequenceDiagram
 ### Design Decisions
 
 **Why MessageChannel?**
+
 - Zero main process overhead after setup
 - Native browser API (well-tested, performant)
 - Supports structured clone algorithm
 - Automatic cleanup when windows close
 
 **Why microtask-based throttling?**
+
 - Predictable ~1ms latency
 - Natural coalescing boundary (one tick)
 - No timers needed (more efficient)
 - Works with React's batching
 
 **Why singleton pattern?**
+
 - One DirectIpcRenderer per renderer process
 - Prevents duplicate port connections
 - Centralized lifecycle management
@@ -807,13 +820,14 @@ If you have a custom IPC system:
 
 Contributions welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
 
+This project uses [semantic-release](https://semantic-release.gitbook.io/) for automated versioning and releases. All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification. See our [Semantic Release Guide](SEMANTIC_RELEASE.md) for details.
+
 ## License
 
-MIT © [Your Company]
+MIT © Jeff Robbins
 
 ## Links
 
-- [GitHub Repository](https://github.com/yourorg/direct-ipc)
-- [Issue Tracker](https://github.com/yourorg/direct-ipc/issues)
-- [Changelog](CHANGELOG.md)
-- [API Documentation](https://yourorg.github.io/direct-ipc)
+- [GitHub Repository](https://github.com/jjeff/electron-direct-ipc)
+- [Issue Tracker](https://github.com/jjeff/electron-direct-ipc/issues)
+- [API Documentation](https://jjeff.github.io/electron-direct-ipc)

@@ -56,6 +56,29 @@ import {
 } from '../src/renderer/DirectIpcRenderer'
 import { DIRECT_IPC_CHANNELS } from '../src/common/DirectIpcCommunication'
 
+// Helper to create mock MessagePort with all required methods
+function createMockMessagePort(): MessagePort {
+  const eventListeners = new Map<string, Set<EventListener>>()
+
+  return {
+    postMessage: vi.fn(),
+    start: vi.fn(),
+    close: vi.fn(),
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (!eventListeners.has(type)) {
+        eventListeners.set(type, new Set())
+      }
+      eventListeners.get(type)!.add(listener)
+    }),
+    removeEventListener: vi.fn((type: string, listener: EventListener) => {
+      eventListeners.get(type)?.delete(listener)
+    }),
+    dispatchEvent: vi.fn(),
+    onmessage: null,
+    onmessageerror: null,
+  } as unknown as MessagePort
+}
+
 describe('DirectIpcRenderer', () => {
   let directIpc: DirectIpcRenderer
   let mockLogger: DirectIpcLogger
@@ -241,11 +264,7 @@ describe('DirectIpcRenderer', () => {
 
   describe('sendTo methods', () => {
     it('should request port by webContentsId', async () => {
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Get the port message listener
       const portMessageListener = mockIpcRenderer.on.mock.calls.find(
@@ -300,11 +319,7 @@ describe('DirectIpcRenderer', () => {
     })
 
     it('should request port by identifier and match on message-port-added', async () => {
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Get the port message listener
       const portMessageListener = mockIpcRenderer.on.mock.calls.find(
@@ -340,11 +355,7 @@ describe('DirectIpcRenderer', () => {
     })
 
     it('should request port by URL pattern and match on message-port-added', async () => {
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Get the port message listener
       const portMessageListener = mockIpcRenderer.on.mock.calls.find(
@@ -380,11 +391,7 @@ describe('DirectIpcRenderer', () => {
     })
 
     it('should not match port with different identifier', async () => {
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Get the port message listener
       const portMessageListener = mockIpcRenderer.on.mock.calls.find(
@@ -566,9 +573,7 @@ describe('DirectIpcRenderer', () => {
     })
 
     it('should close all cached ports', () => {
-      const mockPort = {
-        close: vi.fn(),
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Access private field for testing
       ;(directIpc as any).portCache.set(1, {
@@ -612,12 +617,7 @@ describe('DirectIpcRenderer', () => {
       ;(directIpc as any).map = [targetInfo]
 
       // Create a mock port
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-        onmessage: null,
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Add the port to the cache (simulating a previous connection)
       ;(directIpc as any).portCache.set(2, {
@@ -651,12 +651,7 @@ describe('DirectIpcRenderer', () => {
       ;(directIpc as any).map = [targetInfo]
 
       // Create a mock port
-      const mockPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-        onmessage: null,
-      } as unknown as MessagePort
+      const mockPort = createMockMessagePort()
 
       // Add the port to the cache
       ;(directIpc as any).portCache.set(3, {
@@ -696,12 +691,7 @@ describe('DirectIpcRenderer', () => {
       mockIpcRenderer.invoke.mockResolvedValue(true)
 
       // Create a new port that will be received
-      const newPort = {
-        postMessage: vi.fn(),
-        start: vi.fn(),
-        close: vi.fn(),
-        onmessage: null,
-      } as unknown as MessagePort
+      const newPort = createMockMessagePort()
 
       // Simulate receiving the port shortly after invoke
       setTimeout(() => {
