@@ -146,8 +146,19 @@ Add these secrets to your GitHub repository (Settings → Secrets and variables 
 1. **`GITHUB_TOKEN`** - Automatically provided by GitHub Actions (no setup needed)
 2. **`NPM_TOKEN`** - Your npm publishing token
    - Create at: https://www.npmjs.com/settings/YOUR_USERNAME/tokens
-   - Type: "Automation" token
-   - Scope: "Read and write"
+   - **Recommended**: Use "Granular Access Token" type
+   - Permissions: "Read and write" for packages
+   - Expiration: Set to 1 year (you'll need to rotate it)
+
+   > **Note on OIDC Trusted Publishing**: While npm now supports OIDC trusted publishing (which eliminates the need for tokens), semantic-release doesn't yet fully support it. The `@semantic-release/npm` plugin still requires `NPM_TOKEN` during the verification phase. Once semantic-release adds full OIDC support, we can migrate to token-less publishing.
+
+### Provenance Attestations
+
+This project is configured to publish with **provenance attestations**, which provide cryptographic proof that your package was built in GitHub Actions. This enhances supply chain security.
+
+- Configured in `.releaserc.json` with `"provenance": true`
+- Requires `id-token: write` permission in the workflow (already configured)
+- Users can verify your package with: `npm audit signatures`
 
 ### Workflows
 
