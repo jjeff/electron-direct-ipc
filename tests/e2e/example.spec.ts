@@ -12,8 +12,14 @@ test.beforeAll(async () => {
   // Launch Electron with the test-app main file
   const testAppPath = path.join(__dirname, '../../test-app/dist/main.js');
 
+  // Add flags for CI environments (required for Linux runners)
+  const launchArgs = [testAppPath];
+  if (process.env.CI) {
+    launchArgs.push('--no-sandbox', '--disable-dev-shm-usage');
+  }
+
   app = await electron.launch({
-    args: [testAppPath],
+    args: launchArgs,
   });
 
   app.on('window', async (page) => {
@@ -35,7 +41,9 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app.close();
+  if (app) {
+    await app.close();
+  }
 });
 
 test.describe('DirectIPC Window-to-Window Communication', () => {
