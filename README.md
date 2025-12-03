@@ -52,12 +52,12 @@ Or if this is part of your Electron monorepo:
 // main.ts
 import { DirectIpcMain } from 'electron-direct-ipc/main'
 
-const directIpcMain = new DirectIpcMain()
+DirectIpcMain.init()
 
 // That's it! DirectIpcMain handles all the coordination automatically
 ```
 
-### 2. Define your message types
+### 2. Define your message types (optional but recommended for TypeScript)
 
 ```typescript
 // types.ts
@@ -81,6 +81,8 @@ type WindowIds = 'controller' | 'output' | 'thumbnails'
 // controller-renderer.ts
 import { DirectIpcRenderer } from 'electron-direct-ipc/renderer'
 
+// This adds the types to the singleton instance
+// and sets this renderer's identifier to 'controller'
 const directIpc = DirectIpcRenderer.instance<MyMessages, MyInvokes, WindowIds>({
   identifier: 'controller',
 })
