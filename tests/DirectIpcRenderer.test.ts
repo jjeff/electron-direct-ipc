@@ -277,8 +277,8 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Trigger port arrival immediately before the async call
-      const sendPromise = directIpc.sendToWebContentsId(
-        2,
+      const sendPromise = directIpc.send(
+        { webContentsId: 2 },
         'test-message',
         'arg1',
         'arg2'
@@ -327,8 +327,8 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Start the send before the port arrives
-      const sendPromise = directIpc.sendToIdentifier(
-        'my-target',
+      const sendPromise = directIpc.send(
+        { identifier: 'my-target' },
         'test-message',
         'arg1'
       )
@@ -363,8 +363,8 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Start the send before the port arrives
-      const sendPromise = directIpc.sendToUrl(
-        /target\.com/,
+      const sendPromise = directIpc.send(
+        { url: /target\.com/ },
         'test-message',
         'arg1'
       )
@@ -402,8 +402,8 @@ describe('DirectIpcRenderer', () => {
       directIpc.setDefaultTimeout(100)
 
       // Start the send
-      const sendPromise = directIpc.sendToIdentifier(
-        'target-1',
+      const sendPromise = directIpc.send(
+        { identifier: 'target-1' },
         'test-message',
         'arg1'
       )
@@ -462,7 +462,7 @@ describe('DirectIpcRenderer', () => {
       )
 
       // Call sendToAllIdentifiers - it will timeout but we can check the invoke calls
-      directIpc.sendToAllIdentifiers(/^app-/, 'broadcast', 'data').catch(() => {
+      directIpc.send({ allIdentifiers: /^app-/ }, 'broadcast', 'data').catch(() => {
         // Ignore timeout
       })
 
@@ -499,7 +499,7 @@ describe('DirectIpcRenderer', () => {
         }
       )
 
-      directIpc.sendToAllUrls(/example\.com/, 'broadcast', 'data').catch(() => {
+      directIpc.send({ allUrls: /example\.com/ }, 'broadcast', 'data').catch(() => {
         // Ignore timeout
       })
 
@@ -629,7 +629,7 @@ describe('DirectIpcRenderer', () => {
       vi.clearAllMocks()
 
       // Send a message using the identifier - should use cached port
-      await directIpc.sendToIdentifier('my-target', 'test-message')
+      await directIpc.send({ identifier: 'my-target' }, 'test-message')
 
       // Should have used the cached port without invoking the main process
       expect(mockIpcRenderer.invoke).not.toHaveBeenCalled()
@@ -663,7 +663,7 @@ describe('DirectIpcRenderer', () => {
       vi.clearAllMocks()
 
       // Send a message using a URL pattern - should use cached port
-      await directIpc.sendToUrl(/controller\.com/, 'test-message')
+      await directIpc.send({ url: /controller\.com/ }, 'test-message')
 
       // Should have used the cached port without invoking the main process
       expect(mockIpcRenderer.invoke).not.toHaveBeenCalled()
@@ -699,7 +699,7 @@ describe('DirectIpcRenderer', () => {
       }, 10)
 
       // Send a message using the identifier (not in cache yet)
-      await directIpc.sendToIdentifier('new-target', 'test-message')
+      await directIpc.send({ identifier: 'new-target' }, 'test-message')
 
       // Should have invoked the main process to get a new port
       expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(

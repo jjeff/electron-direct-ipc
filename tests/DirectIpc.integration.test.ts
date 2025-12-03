@@ -264,7 +264,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       await connectRenderers()
 
       // Send message from renderer1 to renderer2
-      await renderer1.sendToIdentifier('output', 'user-action', 'click', {
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'click', {
         button: 'play',
       })
 
@@ -293,9 +293,9 @@ describe('DirectIpc Renderer Integration Tests', () => {
       await connectRenderers()
 
       // Send multiple messages
-      await renderer1.sendToIdentifier('output', 'position-update', 100, 200)
-      await renderer1.sendToIdentifier('output', 'volume-change', 75)
-      await renderer1.sendToIdentifier('output', 'position-update', 150, 250)
+      await renderer1.send({ identifier: 'output' }, 'position-update', 100, 200)
+      await renderer1.send({ identifier: 'output' }, 'volume-change', 75)
+      await renderer1.send({ identifier: 'output' }, 'position-update', 150, 250)
 
       await vi.waitFor(() => {
         expect(positionListener).toHaveBeenCalledTimes(2)
@@ -327,7 +327,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Send many messages rapidly (throttled)
       for (let i = 0; i < 100; i++) {
-        renderer1.throttled.sendToIdentifier('output', 'high-frequency', i)
+        renderer1.throttled.send({ identifier: 'output' }, 'high-frequency', i)
       }
 
       // Wait for coalescing
@@ -348,7 +348,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Send 10 messages (non-throttled)
       for (let i = 0; i < 10; i++) {
-        await renderer1.sendToIdentifier('output', 'high-frequency', i)
+        await renderer1.send({ identifier: 'output' }, 'high-frequency', i)
       }
 
       await vi.waitFor(() => {
@@ -372,7 +372,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Send messages via throttled (only last should arrive for throttled listener)
       for (let i = 0; i < 5; i++) {
-        renderer1.throttled.sendToIdentifier('output', 'position-update', i, i)
+        renderer1.throttled.send({ identifier: 'output' }, 'position-update', i, i)
       }
 
       await vi.waitFor(() => {
@@ -398,8 +398,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
       })
 
       // Invoke from renderer1
-      const result = await renderer1.invokeIdentifier(
-        'output',
+      const result = await renderer1.invoke(
+        { identifier: 'output' },
         'get-data',
         'user-123'
       )
@@ -417,8 +417,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke should reject
       await expect(
-        renderer1.invokeIdentifier(
-          'output',
+        renderer1.invoke(
+          { identifier: 'output' },
           'get-data',
           'invalid-id'
         )
@@ -441,9 +441,9 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke multiple handlers concurrently
       const [result1, result2, result3] = await Promise.all([
-        renderer1.invokeIdentifier('output', 'calculate', 5, 3),
-        renderer1.invokeIdentifier('output', 'echo', 'hello'),
-        renderer1.invokeIdentifier('output', 'calculate', 10, 20),
+        renderer1.invoke({ identifier: 'output' }, 'calculate', 5, 3),
+        renderer1.invoke({ identifier: 'output' }, 'echo', 'hello'),
+        renderer1.invoke({ identifier: 'output' }, 'calculate', 10, 20),
       ])
 
       expect(result1).toBe(8)
@@ -460,8 +460,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
       })
 
       // Invoke via throttled
-      const result = await renderer1.throttled.invokeIdentifier(
-        'output',
+      const result = await renderer1.throttled.invoke(
+        { identifier: 'output' },
         'calculate',
         5,
         7
@@ -482,10 +482,10 @@ describe('DirectIpc Renderer Integration Tests', () => {
       await connectRenderers()
 
       // Send from renderer1 to renderer2
-      await renderer1.sendToIdentifier('output', 'user-action', 'action1')
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'action1')
 
       // Send from renderer2 to renderer1
-      await renderer2.sendToIdentifier('controller', 'user-action', 'action2')
+      await renderer2.send({ identifier: 'controller' }, 'user-action', 'action2')
 
       await vi.waitFor(() => {
         expect(listener1).toHaveBeenCalledTimes(1)
@@ -511,8 +511,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke in both directions
       const [result1, result2] = await Promise.all([
-        renderer1.invokeIdentifier('output', 'echo', 'hello'),
-        renderer2.invokeIdentifier('controller', 'echo', 'world'),
+        renderer1.invoke({ identifier: 'output' }, 'echo', 'hello'),
+        renderer2.invoke({ identifier: 'controller' }, 'echo', 'world'),
       ])
 
       expect(result1).toBe('R2: hello')
@@ -529,7 +529,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       await connectRenderers()
 
       // Send first message
-      await renderer1.sendToIdentifier('output', 'user-action', 'action1')
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'action1')
 
       await vi.waitFor(() => {
         expect(listener).toHaveBeenCalledTimes(1)
@@ -539,7 +539,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       renderer2.off('user-action', listener)
 
       // Send second message
-      await renderer1.sendToIdentifier('output', 'user-action', 'action2')
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'action2')
 
       await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -556,7 +556,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Send messages
       for (let i = 0; i < 10; i++) {
-        renderer1.throttled.sendToIdentifier('output', 'high-frequency', i)
+        renderer1.throttled.send({ identifier: 'output' }, 'high-frequency', i)
       }
 
       await vi.waitFor(() => {
@@ -570,7 +570,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Send more messages
       for (let i = 10; i < 20; i++) {
-        renderer1.throttled.sendToIdentifier('output', 'high-frequency', i)
+        renderer1.throttled.send({ identifier: 'output' }, 'high-frequency', i)
       }
 
       await new Promise((resolve) => setTimeout(resolve, 20))
@@ -594,7 +594,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       await connectRenderers()
 
-      await renderer1.sendToIdentifier('output', 'user-action', 'test')
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'test')
 
       await vi.waitFor(() => {
         expect(listener).toHaveBeenCalledTimes(1)
@@ -608,7 +608,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       await connectRenderers()
 
       // Send a message which will trigger port creation
-      await renderer1.sendToIdentifier('output', 'user-action', 'test')
+      await renderer1.send({ identifier: 'output' }, 'user-action', 'test')
 
       // Wait for the listener to be called
       await vi.waitFor(() => {

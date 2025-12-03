@@ -56,6 +56,19 @@ export interface InvokeOptions {
 }
 
 /**
+ * Target selector for send() and invoke() methods
+ * Specifies which renderer(s) to communicate with
+ *
+ * @template TId - Union of allowed identifier strings
+ */
+export type TargetSelector<TId extends string = string> =
+  | { identifier: TId | RegExp }
+  | { webContentsId: number }
+  | { url: string | RegExp }
+  | { allIdentifiers: TId | RegExp }
+  | { allUrls: string | RegExp }
+
+/**
  * Message format for regular DirectIpc messages
  * args is the tuple of arguments expected by the event handler (Parameters<> of the handler function)
  */
@@ -622,108 +635,104 @@ export class DirectIpcRenderer<
   }
 
   /**
-   * Send a message to a target identified by webContentsId
+   * Send a message to target renderer(s) using a TargetSelector
+   *
+   * @example
+   * // Send to specific webContentsId
+   * await directIpc.send({ webContentsId: 123 }, 'my-message', arg1, arg2)
+   *
+   * // Send to single identifier (throws if multiple matches)
+   * await directIpc.send({ identifier: 'output' }, 'my-message', arg1, arg2)
+   *
+   * // Send to single URL pattern (throws if multiple matches)
+   * await directIpc.send({ url: /^https:\/\/example/ }, 'my-message', arg1, arg2)
+   *
+   * // Send to all matching identifiers
+   * await directIpc.send({ allIdentifiers: /^output/ }, 'my-message', arg1, arg2)
+   *
+   * // Send to all matching URLs
+   * await directIpc.send({ allUrls: 'https://example.com' }, 'my-message', arg1, arg2)
    */
-  async sendToWebContentsId<T extends keyof TMessageMap>(
-    webContentsId: number,
+  async send<T extends keyof TMessageMap>(
+    target: TargetSelector<TIdentifierStrings>,
     message: T,
     ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
   ): Promise<void> {
-    const port = await this.getPort({ webContentsId })
-    if (!port) {
-      throw new Error(
-        `DirectIpcRenderer::sendToWebContentsId - No port found for webContentsId ${webContentsId}`
+    // Handle "all" patterns
+    if ('allIdentifiers' in target) {
+      const identifier = target.allIdentifiers
+      const regex =
+        typeof identifier === 'string' ? new RegExp(identifier) : identifier
+      const targets = this.map.filter(
+        (p) => p.identifier && regex.test(p.identifier)
       )
-    }
-    port.postMessage({ message, args })
-  }
 
-  /**
-   * Send a message to a target identified by identifier
-   * Throws if multiple matches found
-   * @param identifier - The identifier string or regex pattern (string must be one of TIdentifierStrings)
-   */
-  async sendToIdentifier<T extends keyof TMessageMap>(
-    identifier: TIdentifierStrings | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
-  ): Promise<void> {
-    const port = await this.getPort({ identifier })
-    if (!port) {
-      throw new Error(
-        `DirectIpcRenderer::sendToIdentifier - No port found for "${identifier}"`
+      if (targets.length === 0) {
+        this.log.warn?.(
+          `DirectIpcRenderer::send - No targets found for identifier pattern "${identifier}"`
+        )
+        return
+      }
+
+      this.log.silly?.(
+        `DirectIpcRenderer::send - Sending to ${targets.length} targets for pattern "${identifier}" with message "${message as string}"`
       )
-    }
-    port.postMessage({ message, args })
-  }
 
-  /**
-   * Send a message to a target identified by URL pattern
-   * Throws if multiple matches found
-   */
-  async sendToUrl<T extends keyof TMessageMap>(
-    url: string | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
-  ): Promise<void> {
-    const port = await this.getPort({ url })
-    if (!port) {
-      throw new Error(
-        `DirectIpcRenderer::sendToUrl - No port found for "${url}"`
-      )
-    }
-    port.postMessage({ message, args })
-  }
-
-  /**
-   * Send a message to all targets matching identifier pattern
-   * @param identifier - The identifier string or regex pattern (string must be one of TIdentifierStrings)
-   */
-  async sendToAllIdentifiers<T extends keyof TMessageMap>(
-    identifier: TIdentifierStrings | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
-  ): Promise<void> {
-    const regex =
-      typeof identifier === 'string' ? new RegExp(identifier) : identifier
-    const targets = this.map.filter(
-      (p) => p.identifier && regex.test(p.identifier)
-    )
-    // warn if no targets found
-    if (targets.length === 0) {
-      this.log.warn?.(
-        `DirectIpcRenderer::sendToAllIdentifiers - No targets found for identifier pattern "${identifier}"`
+      await Promise.all(
+        targets.map(async (t) => {
+          const port = await this.getPort({ webContentsId: t.webContentsId })
+          if (port) {
+            port.postMessage({ message, args })
+          }
+        })
       )
       return
     }
 
-    this.log.silly?.(
-      `DirectIpcRenderer::sendToAllIdentifiers - Sending to ${targets.length} targets for pattern "${identifier}" with message "${message as string}"`
-    )
+    if ('allUrls' in target) {
+      const url = target.allUrls
+      const regex = typeof url === 'string' ? new RegExp(url) : url
+      const targets = this.map.filter((p) => regex.test(p.url))
 
-    await Promise.all(
-      targets.map((target) =>
-        this.sendToWebContentsId(target.webContentsId, message, ...args)
+      await Promise.all(
+        targets.map(async (t) => {
+          const port = await this.getPort({ webContentsId: t.webContentsId })
+          if (port) {
+            port.postMessage({ message, args })
+          }
+        })
       )
-    )
-  }
+      return
+    }
 
-  /**
-   * Send a message to all targets matching URL pattern
-   */
-  async sendToAllUrls<T extends keyof TMessageMap>(
-    url: string | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
-  ): Promise<void> {
-    const regex = typeof url === 'string' ? new RegExp(url) : url
-    const targets = this.map.filter((p) => regex.test(p.url))
+    // Handle single target patterns
+    let selector: {
+      webContentsId?: number
+      identifier?: TIdentifierStrings | RegExp
+      url?: string | RegExp
+    }
+    let errorContext: string
 
-    await Promise.all(
-      targets.map((target) =>
-        this.sendToWebContentsId(target.webContentsId, message, ...args)
+    if ('webContentsId' in target) {
+      selector = { webContentsId: target.webContentsId }
+      errorContext = `webContentsId ${target.webContentsId}`
+    } else if ('identifier' in target) {
+      selector = { identifier: target.identifier }
+      errorContext = `identifier "${target.identifier}"`
+    } else if ('url' in target) {
+      selector = { url: target.url }
+      errorContext = `url "${target.url}"`
+    } else {
+      throw new Error('DirectIpcRenderer::send - Invalid target selector')
+    }
+
+    const port = await this.getPort(selector)
+    if (!port) {
+      throw new Error(
+        `DirectIpcRenderer::send - No port found for ${errorContext}`
       )
-    )
+    }
+    port.postMessage({ message, args })
   }
 
   /**
@@ -755,10 +764,24 @@ export class DirectIpcRenderer<
   }
 
   /**
-   * Invoke a handler on a remote renderer by webContentsId
+   * Invoke a handler on a remote renderer using a TargetSelector
+   * Note: Only single-target selectors are supported (not allIdentifiers/allUrls)
+   *
+   * @example
+   * // Invoke on specific webContentsId
+   * const result = await directIpc.invoke({ webContentsId: 123 }, 'get-data', arg1, arg2)
+   *
+   * // Invoke on identifier (throws if multiple matches)
+   * const result = await directIpc.invoke({ identifier: 'output' }, 'get-data', arg1, arg2)
+   *
+   * // Invoke on URL pattern (throws if multiple matches)
+   * const result = await directIpc.invoke({ url: /^https:\/\/example/ }, 'get-data', arg1, arg2)
+   *
+   * // With timeout option
+   * const result = await directIpc.invoke({ identifier: 'output' }, 'get-data', arg1, { timeout: 5000 })
    */
-  async invokeWebContentsId<T extends keyof TInvokeMap>(
-    webContentsId: number,
+  async invoke<T extends keyof TInvokeMap>(
+    target: Omit<TargetSelector<TIdentifierStrings>, 'allIdentifiers' | 'allUrls'>,
     channel: T,
     ...args: [
       ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
@@ -767,60 +790,25 @@ export class DirectIpcRenderer<
   ): Promise<
     TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
   > {
-    const port = await this.getPort({ webContentsId })
-    // Extract options from the last argument if it's an InvokeOptions object
-    const lastArg = args[args.length - 1]
-    const isOptionsObject =
-      lastArg &&
-      typeof lastArg === 'object' &&
-      !Array.isArray(lastArg) &&
-      'timeout' in lastArg
-    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
-    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
-    return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
-  }
+    // Build selector for getPort based on target type
+    let selector: {
+      webContentsId?: number
+      identifier?: TIdentifierStrings | RegExp
+      url?: string | RegExp
+    }
 
-  /**
-   * Invoke a handler on a remote renderer by identifier
-   * @param identifier - The identifier string or regex pattern (string must be one of TIdentifierStrings)
-   */
-  async invokeIdentifier<T extends keyof TInvokeMap>(
-    identifier: TIdentifierStrings | RegExp,
-    channel: T,
-    ...args: [
-      ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
-      options?: InvokeOptions,
-    ]
-  ): Promise<
-    TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
-  > {
-    const port = await this.getPort({ identifier })
-    // Extract options from the last argument if it's an InvokeOptions object
-    const lastArg = args[args.length - 1]
-    const isOptionsObject =
-      lastArg &&
-      typeof lastArg === 'object' &&
-      !Array.isArray(lastArg) &&
-      'timeout' in lastArg
-    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
-    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
-    return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
-  }
+    if ('webContentsId' in target) {
+      selector = { webContentsId: (target as { webContentsId: number }).webContentsId }
+    } else if ('identifier' in target) {
+      selector = { identifier: (target as { identifier: TIdentifierStrings | RegExp }).identifier }
+    } else if ('url' in target) {
+      selector = { url: (target as { url: string | RegExp }).url }
+    } else {
+      throw new Error('DirectIpcRenderer::invoke - Invalid target selector')
+    }
 
-  /**
-   * Invoke a handler on a remote renderer by URL
-   */
-  async invokeUrl<T extends keyof TInvokeMap>(
-    url: string | RegExp,
-    channel: T,
-    ...args: [
-      ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
-      options?: InvokeOptions,
-    ]
-  ): Promise<
-    TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
-  > {
-    const port = await this.getPort({ url })
+    const port = await this.getPort(selector)
+
     // Extract options from the last argument if it's an InvokeOptions object
     const lastArg = args[args.length - 1]
     const isOptionsObject =

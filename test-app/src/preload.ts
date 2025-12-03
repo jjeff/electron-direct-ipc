@@ -7,26 +7,25 @@ import type { TestDirectIpcInvokeMap, TestDirectIpcMap, WindowName } from './sha
 const windowId = process.argv.find(arg => arg.startsWith('--win-id='))?.split('=')[1] || 'unknown';
 console.log(`Preload script loaded for window ID: ${windowId}`);
 const directIpc = DirectIpcRenderer.instance<TestDirectIpcMap, TestDirectIpcInvokeMap, WindowName>({ identifier: `window:${windowId}` });
-const throttled = directIpc.throttled;
 // if windowId is 1, use 2, and vice versa
 const otherWindowId = windowId === '1' ? '2' : '1';
 
 /** ---- API for contextBridge ---- */
 
 contextBridge.exposeInMainWorld('directIpc', {
-  sendMessage: (msg: string) => directIpc.sendToIdentifier(`window:${otherWindowId}`, 'send-message', msg),
-  sendObject: (obj: object) => directIpc.sendToIdentifier(`window:${otherWindowId}`, 'send-object', obj),
-  sendNumber: (num: number) => directIpc.sendToIdentifier(`window:${otherWindowId}`, 'send-number', num),
-  sendBoolean: (flag: boolean) => directIpc.sendToIdentifier(`window:${otherWindowId}`, 'send-boolean', flag),
-  sendMultipleArgs: (a: string, b: number, c: boolean) => directIpc.sendToIdentifier(`window:${otherWindowId}`, 'send-multiple-args', a, b, c),
-  invokeEcho: (msg: string): Promise<string> => directIpc.invokeIdentifier(`window:${otherWindowId}`, 'invoke-echo', msg),
-  invokeSum: (a: number, b: number): Promise<number> => directIpc.invokeIdentifier(`window:${otherWindowId}`, 'invoke-sum', a, b),
-  invokeSumArray: (arr: number[]): Promise<number> => directIpc.invokeIdentifier(`window:${otherWindowId}`, 'invoke-sum-array', arr),
+  sendMessage: (msg: string) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-message', msg),
+  sendObject: (obj: object) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-object', obj),
+  sendNumber: (num: number) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-number', num),
+  sendBoolean: (flag: boolean) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-boolean', flag),
+  sendMultipleArgs: (a: string, b: number, c: boolean) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-multiple-args', a, b, c),
+  invokeEcho: (msg: string): Promise<string> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-echo', msg),
+  invokeSum: (a: number, b: number): Promise<number> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-sum', a, b),
+  invokeSumArray: (arr: number[]): Promise<number> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-sum-array', arr),
 
   // Throttled methods
   throttled: {
-    sendCounter: (count: number) => throttled.sendToIdentifier(`window:${otherWindowId}`, 'throttled-counter', count),
-    invokeCounter: (count: number): Promise<number> => throttled.invokeIdentifier(`window:${otherWindowId}`, 'throttled-invoke-counter', count),
+    sendCounter: (count: number) => directIpc.throttled.send({ identifier: `window:${otherWindowId}` }, 'throttled-counter', count),
+    invokeCounter: (count: number): Promise<number> => directIpc.throttled.invoke({ identifier: `window:${otherWindowId}` }, 'throttled-invoke-counter', count),
   }
 });
 
@@ -97,12 +96,12 @@ function handleDomLoaded() {
   });
 
   // Throttled event listener
-  throttled.on('throttled-counter', (sender: any, count: number) => {
+  directIpc.throttled.on('throttled-counter', (sender, count) => {
     logMessage(`[Throttled Event] throttled-counter from ${sender.identifier}: ${count}`);
   });
 
   // Throttled invoke handler
-  throttled.handle('throttled-invoke-counter', (sender: any, count: number) => {
+  directIpc.throttled.handle('throttled-invoke-counter', (sender, count) => {
     logMessage(`[Throttled Invoke] throttled-invoke-counter from ${sender.identifier}: ${count} -> returning ${count}`);
     return count;
   });

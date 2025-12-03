@@ -28,12 +28,8 @@ describe('DirectIpcThrottled', () => {
       }
     )
 
-    // Mock send methods
-    vi.spyOn(mockDirectIpc, 'sendToIdentifier').mockResolvedValue()
-    vi.spyOn(mockDirectIpc, 'sendToWebContentsId').mockResolvedValue()
-    vi.spyOn(mockDirectIpc, 'sendToUrl').mockResolvedValue()
-    vi.spyOn(mockDirectIpc, 'sendToAllIdentifiers').mockResolvedValue()
-    vi.spyOn(mockDirectIpc, 'sendToAllUrls').mockResolvedValue()
+    // Mock send method
+    vi.spyOn(mockDirectIpc, 'send').mockResolvedValue()
 
     // Mock getMap for sendToAll* detection
     vi.spyOn(mockDirectIpc, 'getMap').mockReturnValue([
@@ -45,7 +41,7 @@ describe('DirectIpcThrottled', () => {
 
     // Mock other proxy methods
     vi.spyOn(mockDirectIpc, 'handle')
-    vi.spyOn(mockDirectIpc, 'invokeIdentifier')
+    vi.spyOn(mockDirectIpc, 'invoke')
     vi.spyOn(mockDirectIpc, 'getMyIdentifier')
 
     // Use the throttled property created automatically by DirectIpcRenderer
@@ -66,21 +62,21 @@ describe('DirectIpcThrottled', () => {
   describe('Send-side coalescing', () => {
     it('should coalesce multiple sends to same target+channel', async () => {
       // Send multiple messages synchronously
-      throttled.sendToIdentifier('output', 'position-update', 1, 1)
-      throttled.sendToIdentifier('output', 'position-update', 2, 2)
-      throttled.sendToIdentifier('output', 'position-update', 3, 3)
+      throttled.send({ identifier: 'output' }, 'position-update', 1, 1)
+      throttled.send({ identifier: 'output' }, 'position-update', 2, 2)
+      throttled.send({ identifier: 'output' }, 'position-update', 3, 3)
 
       // Should not have sent yet
-      expect(mockDirectIpc.sendToIdentifier).not.toHaveBeenCalled()
+      expect(mockDirectIpc.send).not.toHaveBeenCalled()
 
       // Wait for microtask
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
       // Should only send the last message
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'position-update',
         3,
         3
@@ -88,21 +84,21 @@ describe('DirectIpcThrottled', () => {
     })
 
     it('should send messages to different targets separately', async () => {
-      throttled.sendToIdentifier('output', 'position-update', 1, 1)
-      throttled.sendToIdentifier('controller', 'position-update', 2, 2)
+      throttled.send({ identifier: 'output' }, 'position-update', 1, 1)
+      throttled.send({ identifier: 'controller' }, 'position-update', 2, 2)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(2)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(2)
       })
 
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'position-update',
         1,
         1
       )
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'controller',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'controller' },
         'position-update',
         2,
         2
@@ -110,82 +106,80 @@ describe('DirectIpcThrottled', () => {
     })
 
     it('should send messages on different channels separately', async () => {
-      throttled.sendToIdentifier('output', 'position-update', 1, 1)
-      throttled.sendToIdentifier('output', 'volume-change', 50)
+      throttled.send({ identifier: 'output' }, 'position-update', 1, 1)
+      throttled.send({ identifier: 'output' }, 'volume-change', 50)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(2)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(2)
       })
 
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'position-update',
         1,
         1
       )
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'volume-change',
         50
       )
     })
 
     it('should coalesce sendToWebContentsId calls', async () => {
-      throttled.sendToWebContentsId(1, 'volume-change', 10)
-      throttled.sendToWebContentsId(1, 'volume-change', 20)
-      throttled.sendToWebContentsId(1, 'volume-change', 30)
+      throttled.send({ webContentsId: 1 }, 'volume-change', 10)
+      throttled.send({ webContentsId: 1 }, 'volume-change', 20)
+      throttled.send({ webContentsId: 1 }, 'volume-change', 30)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToWebContentsId).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToWebContentsId).toHaveBeenCalledWith(
-        1,
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { webContentsId: 1 },
         'volume-change',
         30
       )
     })
 
     it('should coalesce sendToUrl calls', async () => {
-      throttled.sendToUrl('test://output', 'data-update', { value: 1 })
-      throttled.sendToUrl('test://output', 'data-update', { value: 2 })
-      throttled.sendToUrl('test://output', 'data-update', { value: 3 })
+      throttled.send({ url: 'test://output' }, 'data-update', { value: 1 })
+      throttled.send({ url: 'test://output' }, 'data-update', { value: 2 })
+      throttled.send({ url: 'test://output' }, 'data-update', { value: 3 })
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToUrl).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToUrl).toHaveBeenCalledWith(
-        'test://output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { url: 'test://output' },
         'data-update',
         { value: 3 }
       )
     })
 
     it('should handle mixed send method calls', async () => {
-      throttled.sendToIdentifier('output', 'position-update', 1, 1)
-      throttled.sendToWebContentsId(1, 'volume-change', 50)
-      throttled.sendToUrl('test://url', 'song-changed', 'song-123')
+      throttled.send({ identifier: 'output' }, 'position-update', 1, 1)
+      throttled.send({ webContentsId: 1 }, 'volume-change', 50)
+      throttled.send({ url: 'test://url' }, 'song-changed', 'song-123')
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(1)
-        expect(mockDirectIpc.sendToWebContentsId).toHaveBeenCalledTimes(1)
-        expect(mockDirectIpc.sendToUrl).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(3)
       })
     })
 
     it('should coalesce sendToAllIdentifiers calls', async () => {
-      throttled.sendToAllIdentifiers(/output.*/, 'position-update', 1, 1)
-      throttled.sendToAllIdentifiers(/output.*/, 'position-update', 2, 2)
-      throttled.sendToAllIdentifiers(/output.*/, 'position-update', 3, 3)
+      throttled.send({ allIdentifiers: /output.*/ }, 'position-update', 1, 1)
+      throttled.send({ allIdentifiers: /output.*/ }, 'position-update', 2, 2)
+      throttled.send({ allIdentifiers: /output.*/ }, 'position-update', 3, 3)
 
       await vi.waitFor(() => {
-        // Should detect regex pattern and use sendToAllIdentifiers
-        expect(mockDirectIpc.sendToAllIdentifiers).toHaveBeenCalledTimes(1)
+        // Should send with allIdentifiers selector
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToAllIdentifiers).toHaveBeenCalledWith(
-        /output.*/,
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { allIdentifiers: /output.*/ },
         'position-update',
         3,
         3
@@ -193,16 +187,16 @@ describe('DirectIpcThrottled', () => {
     })
 
     it('should coalesce sendToAllUrls calls', async () => {
-      throttled.sendToAllUrls(/test:\/\/.*/, 'volume-change', 10)
-      throttled.sendToAllUrls(/test:\/\/.*/, 'volume-change', 20)
-      throttled.sendToAllUrls(/test:\/\/.*/, 'volume-change', 30)
+      throttled.send({ allUrls: /test:\/\/.*/ }, 'volume-change', 10)
+      throttled.send({ allUrls: /test:\/\/.*/ }, 'volume-change', 20)
+      throttled.send({ allUrls: /test:\/\/.*/ }, 'volume-change', 30)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToAllUrls).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToAllUrls).toHaveBeenCalledWith(
-        /test:\/\/.*/,
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { allUrls: /test:\/\/.*/ },
         'volume-change',
         30
       )
@@ -434,10 +428,10 @@ describe('DirectIpcThrottled', () => {
       // Just verify the method exists and can be called
     })
 
-    it('should proxy invokeIdentifier() to directIpc', () => {
+    it('should proxy invoke() to directIpc', () => {
       // The proxy method is bound, so we just verify it's the same function reference
-      expect(throttled.invokeIdentifier).toBeDefined()
-      expect(typeof throttled.invokeIdentifier).toBe('function')
+      expect(throttled.invoke).toBeDefined()
+      expect(typeof throttled.invoke).toBe('function')
     })
 
     it('should proxy getMap() to directIpc', () => {
@@ -475,9 +469,7 @@ describe('DirectIpcThrottled', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
 
       // Should not have called any send methods
-      expect(mockDirectIpc.sendToIdentifier).not.toHaveBeenCalled()
-      expect(mockDirectIpc.sendToWebContentsId).not.toHaveBeenCalled()
-      expect(mockDirectIpc.sendToUrl).not.toHaveBeenCalled()
+      expect(mockDirectIpc.send).not.toHaveBeenCalled()
     })
 
     it('should handle empty receives (no pending messages)', async () => {
@@ -520,14 +512,14 @@ describe('DirectIpcThrottled', () => {
     })
 
     it('should handle zero/falsy values correctly', async () => {
-      throttled.sendToIdentifier('output', 'volume-change', 0)
+      throttled.send({ identifier: 'output' }, 'volume-change', 0)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'volume-change',
         0
       )
@@ -540,14 +532,14 @@ describe('DirectIpcThrottled', () => {
         array: [1, 2, 3],
       }
 
-      throttled.sendToIdentifier('output', 'data-update', complexData)
+      throttled.send({ identifier: 'output' }, 'data-update', complexData)
 
       await vi.waitFor(() => {
-        expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledTimes(1)
+        expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.sendToIdentifier).toHaveBeenCalledWith(
-        'output',
+      expect(mockDirectIpc.send).toHaveBeenCalledWith(
+        { identifier: 'output' },
         'data-update',
         complexData
       )

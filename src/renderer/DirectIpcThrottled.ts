@@ -5,6 +5,7 @@ import {
   DirectIpcRenderer,
   EventMap,
   InvokeMap,
+  TargetSelector,
   TypedEventEmitter,
 } from './DirectIpcRenderer.js'
 
@@ -78,7 +79,7 @@ type WithSender<T extends EventMap> = {
  * // ✅ GOOD: High-frequency state updates (throttled)
  * // Only the final position (1000) will be sent
  * for (let i = 0; i <= 1000; i++) {
- *   directIpc.throttled.sendToIdentifier('output', 'playback-position', i)
+ *   directIpc.throttled.send({ identifier: 'output' }, 'playback-position', i)
  * }
  *
  * // ✅ GOOD: Receive high-frequency updates (throttled)
@@ -88,14 +89,14 @@ type WithSender<T extends EventMap> = {
  * })
  *
  * // ✅ GOOD: Important user actions (NOT throttled)
- * directIpc.sendToIdentifier('output', 'play-button-clicked')
+ * directIpc.send({ identifier: 'output' }, 'play-button-clicked')
  *
  * // ✅ GOOD: Unique events (NOT throttled)
- * directIpc.sendToIdentifier('output', 'clip-added', clip)
+ * directIpc.send({ identifier: 'output' }, 'clip-added', clip)
  *
  * // ✅ GOOD: Mix throttled and non-throttled for different channels
- * directIpc.throttled.sendToIdentifier('output', 'position-update', position)
- * directIpc.sendToIdentifier('output', 'song-changed', songId)
+ * directIpc.throttled.send({ identifier: 'output' }, 'position-update', position)
+ * directIpc.send({ identifier: 'output' }, 'song-changed', songId)
  * ```
  *
  * ### Performance Characteristics
@@ -119,7 +120,7 @@ type WithSender<T extends EventMap> = {
  * const directIpc = DirectIpcRenderer.instance<Messages>({ identifier: 'my-window' })
  *
  * // Send throttled messages
- * directIpc.throttled.sendToIdentifier('output', 'cursor-position', x, y)
+ * directIpc.throttled.send({ identifier: 'output' }, 'cursor-position', x, y)
  *
  * // Receive throttled messages
  * directIpc.throttled.on('mouse-move', (sender, x, y) => {
@@ -144,7 +145,7 @@ export class DirectIpcThrottled<
 
   /**
    * Pending outgoing messages awaiting send (coalesced by target+channel)
-   * Key format: "type:target:channel" where type is "id", "wc", or "url"
+   * Key format: "type:target:channel" where type is "id", "wc", "url", "allid", or "allurl"
    */
   private pendingSends = new Map<
     string,
@@ -156,6 +157,7 @@ export class DirectIpcThrottled<
       }
       message: keyof TMessageMap
       args: unknown[]
+      targetType: 'single' | 'multiple'
     }
   >()
 
@@ -197,21 +199,11 @@ export class DirectIpcThrottled<
     TInvokeMap,
     TIdentifierStrings
   >['removeHandler']
-  public readonly invokeIdentifier: DirectIpcRenderer<
+  public readonly invoke: DirectIpcRenderer<
     TMessageMap,
     TInvokeMap,
     TIdentifierStrings
-  >['invokeIdentifier']
-  public readonly invokeWebContentsId: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >['invokeWebContentsId']
-  public readonly invokeUrl: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >['invokeUrl']
+  >['invoke']
   public readonly getMap: DirectIpcRenderer<
     TMessageMap,
     TInvokeMap,
@@ -270,9 +262,7 @@ export class DirectIpcThrottled<
     // Bind proxy methods in constructor
     this.handle = directIpc.handle.bind(directIpc)
     this.removeHandler = directIpc.removeHandler.bind(directIpc)
-    this.invokeIdentifier = directIpc.invokeIdentifier.bind(directIpc)
-    this.invokeWebContentsId = directIpc.invokeWebContentsId.bind(directIpc)
-    this.invokeUrl = directIpc.invokeUrl.bind(directIpc)
+    this.invoke = directIpc.invoke.bind(directIpc)
     this.getMap = directIpc.getMap.bind(directIpc)
     this.getMyIdentifier = directIpc.getMyIdentifier.bind(directIpc)
     this.setIdentifier = directIpc.setIdentifier.bind(directIpc)
@@ -288,154 +278,84 @@ export class DirectIpcThrottled<
   // ============================================================================
 
   /**
-   * Send a message to a target identified by identifier (throttled)
+   * Send a message to target renderer(s) using a TargetSelector (throttled)
    *
    * Multiple calls to the same target+channel in one tick will be coalesced,
    * keeping only the latest message. The message is sent on the next microtask.
    *
-   * @param identifier - Target identifier string or regex pattern
+   * @param target - TargetSelector specifying which renderer(s) to send to
    * @param message - Message channel name
    * @param args - Message arguments
+   *
+   * @example
+   * // Send to single identifier (throttled)
+   * directIpc.throttled.send({ identifier: 'output' }, 'cursor-position', x, y)
+   *
+   * // Send to webContentsId (throttled)
+   * directIpc.throttled.send({ webContentsId: 123 }, 'update', data)
+   *
+   * // Send to all matching identifiers (throttled)
+   * directIpc.throttled.send({ allIdentifiers: /^output/ }, 'broadcast', msg)
    */
-  async sendToIdentifier<T extends keyof TMessageMap>(
-    identifier: TIdentifierStrings | RegExp,
+  async send<T extends keyof TMessageMap>(
+    target: TargetSelector<TIdentifierStrings>,
     message: T,
     ...args: TMessageMap[T] extends (...args: infer P) => unknown ? P : never
   ): Promise<void> {
-    const key = `id:${String(identifier)}:${String(message)}`
+    // Generate coalescing key based on target type
+    let key: string
+    let targetForSend: {
+      webContentsId?: number
+      identifier?: TIdentifierStrings | RegExp
+      url?: string | RegExp
+    }
+    let targetType: 'single' | 'multiple' = 'single'
 
-    this.log?.silly?.(
-      `DirectIpcThrottled::sendToIdentifier - Queueing ${String(message)} to ${String(identifier)}`
-    )
+    if ('webContentsId' in target) {
+      key = `wc:${target.webContentsId}:${String(message)}`
+      targetForSend = { webContentsId: target.webContentsId }
+      this.log?.silly?.(
+        `DirectIpcThrottled::send - Queueing ${String(message)} to webContentsId ${target.webContentsId}`
+      )
+    } else if ('identifier' in target) {
+      key = `id:${String(target.identifier)}:${String(message)}`
+      targetForSend = { identifier: target.identifier }
+      this.log?.silly?.(
+        `DirectIpcThrottled::send - Queueing ${String(message)} to identifier ${String(target.identifier)}`
+      )
+    } else if ('url' in target) {
+      key = `url:${String(target.url)}:${String(message)}`
+      targetForSend = { url: target.url }
+      this.log?.silly?.(
+        `DirectIpcThrottled::send - Queueing ${String(message)} to url ${String(target.url)}`
+      )
+    } else if ('allIdentifiers' in target) {
+      key = `allid:${String(target.allIdentifiers)}:${String(message)}`
+      targetForSend = { identifier: target.allIdentifiers }
+      targetType = 'multiple'
+      this.log?.silly?.(
+        `DirectIpcThrottled::send - Queueing ${String(message)} to allIdentifiers ${String(target.allIdentifiers)}`
+      )
+    } else if ('allUrls' in target) {
+      key = `allurl:${String(target.allUrls)}:${String(message)}`
+      targetForSend = { url: target.allUrls }
+      targetType = 'multiple'
+      this.log?.silly?.(
+        `DirectIpcThrottled::send - Queueing ${String(message)} to allUrls ${String(target.allUrls)}`
+      )
+    } else {
+      throw new Error('DirectIpcThrottled::send - Invalid target selector')
+    }
 
     // Store latest message (overwrites any previous for same key)
     this.pendingSends.set(key, {
-      target: { identifier },
+      target: targetForSend,
       message,
       args,
+      targetType,
     })
 
     // Schedule send on next microtask
-    this.scheduleSend()
-  }
-
-  /**
-   * Send a message to a target identified by webContentsId (throttled)
-   *
-   * Multiple calls to the same target+channel in one tick will be coalesced,
-   * keeping only the latest message. The message is sent on the next microtask.
-   *
-   * @param webContentsId - Target webContentsId
-   * @param message - Message channel name
-   * @param args - Message arguments
-   */
-  async sendToWebContentsId<T extends keyof TMessageMap>(
-    webContentsId: number,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => unknown ? P : never
-  ): Promise<void> {
-    const key = `wc:${webContentsId}:${String(message)}`
-
-    this.log?.silly?.(
-      `DirectIpcThrottled::sendToWebContentsId - Queueing ${String(message)} to ${webContentsId}`
-    )
-
-    this.pendingSends.set(key, {
-      target: { webContentsId },
-      message,
-      args,
-    })
-
-    this.scheduleSend()
-  }
-
-  /**
-   * Send a message to a target identified by URL (throttled)
-   *
-   * Multiple calls to the same target+channel in one tick will be coalesced,
-   * keeping only the latest message. The message is sent on the next microtask.
-   *
-   * @param url - Target URL string or regex pattern
-   * @param message - Message channel name
-   * @param args - Message arguments
-   */
-  async sendToUrl<T extends keyof TMessageMap>(
-    url: string | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => unknown ? P : never
-  ): Promise<void> {
-    const key = `url:${String(url)}:${String(message)}`
-
-    this.log?.silly?.(
-      `DirectIpcThrottled::sendToUrl - Queueing ${String(message)} to ${String(url)}`
-    )
-
-    this.pendingSends.set(key, {
-      target: { url },
-      message,
-      args,
-    })
-
-    this.scheduleSend()
-  }
-
-  /**
-   * Send a message to all targets matching identifier pattern (throttled)
-   *
-   * Coalesces messages per unique pattern+channel combination.
-   * The message is sent on the next microtask to all matching targets.
-   *
-   * @param identifier - Identifier pattern
-   * @param message - Message channel name
-   * @param args - Message arguments
-   */
-  async sendToAllIdentifiers<T extends keyof TMessageMap>(
-    identifier: TIdentifierStrings | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => unknown ? P : never
-  ): Promise<void> {
-    const key = `allid:${String(identifier)}:${String(message)}`
-
-    this.log?.silly?.(
-      `DirectIpcThrottled::sendToAllIdentifiers - Queueing ${String(message)} to pattern ${String(identifier)}`
-    )
-
-    this.pendingSends.set(key, {
-      target: { identifier },
-      message,
-      args,
-    })
-
-    this.scheduleSend()
-  }
-
-  /**
-   * Send a message to all targets matching URL pattern (throttled)
-   *
-   * Coalesces messages per unique pattern+channel combination.
-   * The message is sent on the next microtask to all matching targets.
-   *
-   * @param url - URL pattern
-   * @param message - Message channel name
-   * @param args - Message arguments
-   */
-  async sendToAllUrls<T extends keyof TMessageMap>(
-    url: string | RegExp,
-    message: T,
-    ...args: TMessageMap[T] extends (...args: infer P) => unknown ? P : never
-  ): Promise<void> {
-    const key = `allurl:${String(url)}:${String(message)}`
-
-    this.log?.silly?.(
-      `DirectIpcThrottled::sendToAllUrls - Queueing ${String(message)} to pattern ${String(url)}`
-    )
-
-    this.pendingSends.set(key, {
-      target: { url },
-      message,
-      args,
-    })
-
     this.scheduleSend()
   }
 
@@ -472,60 +392,27 @@ export class DirectIpcThrottled<
 
     // Send all coalesced messages in parallel
     await Promise.all(
-      sends.map(({ target, message, args }) => {
+      sends.map(({ target, message, args, targetType }) => {
+        // Build TargetSelector based on target and targetType
+        let targetSelector: TargetSelector<TIdentifierStrings>
+
         if (target.webContentsId !== undefined) {
-          return this.directIpc.sendToWebContentsId(
-            target.webContentsId,
-            message,
-
-            ...(args as any)
-          )
+          targetSelector = { webContentsId: target.webContentsId }
         } else if (target.identifier !== undefined) {
-          // Check if this is a sendToAll* operation (identifier could be regex)
-          const isMultiTarget =
-            typeof target.identifier !== 'string' ||
-            this.directIpc
-              .getMap()
-              .filter((t) => t.identifier === target.identifier).length > 1
-
-          if (isMultiTarget) {
-            return this.directIpc.sendToAllIdentifiers(
-              target.identifier,
-              message,
-
-              ...(args as any)
-            )
-          } else {
-            return this.directIpc.sendToIdentifier(
-              target.identifier,
-              message,
-
-              ...(args as any)
-            )
-          }
+          targetSelector =
+            targetType === 'multiple'
+              ? { allIdentifiers: target.identifier }
+              : { identifier: target.identifier }
         } else if (target.url !== undefined) {
-          // Check if this is a sendToAll* operation
-          const isMultiTarget =
-            target.url instanceof RegExp ||
-            this.directIpc.getMap().filter((t) => t.url === target.url).length >
-              1
-
-          if (isMultiTarget) {
-            return this.directIpc.sendToAllUrls(
-              target.url,
-              message,
-
-              ...(args as any)
-            )
-          } else {
-            return this.directIpc.sendToUrl(
-              target.url,
-              message,
-
-              ...(args as any)
-            )
-          }
+          targetSelector =
+            targetType === 'multiple'
+              ? { allUrls: target.url }
+              : { url: target.url }
+        } else {
+          return Promise.resolve()
         }
+
+        return this.directIpc.send(targetSelector, message, ...(args as any))
       })
     )
   }

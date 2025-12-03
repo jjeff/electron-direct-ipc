@@ -86,11 +86,11 @@ const directIpc = DirectIpcRenderer.instance<MyMessages, MyInvokes, WindowIds>({
 })
 
 // Send a message with multiple arguments
-await directIpc.sendToIdentifier('output', 'user-action', 'play', 42)
+await directIpc.send({ identifier: 'output' }, 'user-action', 'play', 42)
 
 // Send high-frequency updates (throttled)
 for (let i = 0; i < 1000; i++) {
-  directIpc.throttled.sendToIdentifier('output', 'position-update', i, i)
+  directIpc.throttled.send({ identifier: 'output' }, 'position-update', i, i)
 }
 // Throttling coalesces - only the last position (999, 999) is actually sent!
 ```
@@ -121,7 +121,7 @@ directIpc.handle('get-user', async (sender, userId) => {
 })
 
 // Invoke another renderer
-const result = await directIpc.invokeIdentifier('controller', 'calculate', 5, 10)
+const result = await directIpc.invoke({ identifier: 'controller' }, 'calculate', 5, 10)
 console.log(result) // 15
 ```
 
@@ -148,22 +148,32 @@ Renderer A                Main Process              Renderer B
 
 ### Targeting Modes
 
-DirectIPC supports three ways to target renderers:
+DirectIPC uses a `TargetSelector` object to specify which renderer(s) to communicate with. This provides a clean, consistent API across all send and invoke operations.
 
-1. **By Identifier** (recommended) - Human-readable window identifiers
-2. **By WebContentsId** - Electron's internal ID
-3. **By URL Pattern** - Match windows by URL (regex supported)
+**Single Target Selectors** - Send to one renderer (throws if multiple match):
 
 ```typescript
 // By identifier (best for readability)
-await directIpc.sendToIdentifier('output', 'play')
+await directIpc.send({ identifier: 'output' }, 'play')
 
 // By webContentsId (best for precision)
-await directIpc.sendToWebContentsId(5, 'play')
+await directIpc.send({ webContentsId: 5 }, 'play')
 
 // By URL pattern (best for dynamic windows)
-await directIpc.sendToUrl(/^settings:\/\//, 'theme-changed', 'dark')
+await directIpc.send({ url: /^settings:\/\// }, 'theme-changed', 'dark')
 ```
+
+**Multi-Target Selectors** - Broadcast to all matching renderers:
+
+```typescript
+// Send to all renderers matching identifier pattern
+await directIpc.send({ allIdentifiers: /^output/ }, 'broadcast-message', 'data')
+
+// Send to all renderers matching URL pattern
+await directIpc.send({ allUrls: /^settings:/ }, 'theme-changed', 'dark')
+```
+
+**Note:** The `invoke()` method only supports single-target selectors, as it expects a single response.
 
 ### Throttled vs Non-Throttled
 
@@ -173,7 +183,7 @@ DirectIPC provides two communication modes:
 
 ```typescript
 // Every message sent
-directIpc.sendToIdentifier('output', 'button-clicked')
+directIpc.send({ identifier: 'output' }, 'button-clicked')
 ```
 
 **Throttled** - Only latest value per microtask is delivered (lossy)
@@ -181,7 +191,7 @@ directIpc.sendToIdentifier('output', 'button-clicked')
 ```typescript
 // Only the last value (999) is sent
 for (let i = 0; i < 1000; i++) {
-  directIpc.throttled.sendToIdentifier('output', 'position', i)
+  directIpc.throttled.send({ identifier: 'output' }, 'position', i)
 }
 ```
 
@@ -196,9 +206,9 @@ type Messages = {
 }
 
 // Get full autocomplete and type checking
-directIpc.sendToIdentifier('output', 'position-update', 10, 20) // ✅
-directIpc.sendToIdentifier('output', 'position-update', '10', '20') // ❌ Type error!
-directIpc.sendToIdentifier('output', 'wrong-channel', 10, 20) // ❌ Type error!
+directIpc.send({ identifier: 'output' }, 'position-update', 10, 20) // ✅
+directIpc.send({ identifier: 'output' }, 'position-update', '10', '20') // ❌ Type error!
+directIpc.send({ identifier: 'output' }, 'wrong-channel', 10, 20) // ❌ Type error!
 
 // Listeners are also type-safe
 directIpc.on('position-update', (sender, x, y) => {
@@ -232,37 +242,27 @@ const directIpc = DirectIpcRenderer._createInstance<TMessages, TInvokes, TIdenti
 #### Sending Messages
 
 ```typescript
-// Send to specific target
-await directIpc.sendToIdentifier(
-  identifier: TIdentifiers | RegExp,
-  message: keyof TMessages,
-  ...args: Parameters<TMessages[message]>
+// Unified send method with TargetSelector
+await directIpc.send<K extends keyof TMessages>(
+  target: TargetSelector<TIdentifiers>,
+  message: K,
+  ...args: Parameters<TMessages[K]>
 ): Promise<void>
 
-await directIpc.sendToWebContentsId(
-  webContentsId: number,
-  message: keyof TMessages,
-  ...args: Parameters<TMessages[message]>
-): Promise<void>
+// TargetSelector types:
+type TargetSelector<TId extends string> =
+  | { identifier: TId | RegExp }           // Single target by identifier
+  | { webContentsId: number }              // Single target by webContentsId
+  | { url: string | RegExp }               // Single target by URL
+  | { allIdentifiers: TId | RegExp }       // Broadcast to all matching identifiers
+  | { allUrls: string | RegExp }           // Broadcast to all matching URLs
 
-await directIpc.sendToUrl(
-  url: string | RegExp,
-  message: keyof TMessages,
-  ...args: Parameters<TMessages[message]>
-): Promise<void>
-
-// Broadcast to multiple targets
-await directIpc.sendToAllIdentifiers(
-  identifierPattern: TIdentifiers | RegExp,
-  message: keyof TMessages,
-  ...args: Parameters<TMessages[message]>
-): Promise<void>
-
-await directIpc.sendToAllUrls(
-  urlPattern: string | RegExp,
-  message: keyof TMessages,
-  ...args: Parameters<TMessages[message]>
-): Promise<void>
+// Examples:
+await directIpc.send({ identifier: 'output' }, 'play')
+await directIpc.send({ webContentsId: 5 }, 'play')
+await directIpc.send({ url: /^settings:/ }, 'theme-changed', 'dark')
+await directIpc.send({ allIdentifiers: /^output/ }, 'broadcast', 'data')
+await directIpc.send({ allUrls: /^settings:/ }, 'update', 'value')
 ```
 
 #### Receiving Messages
@@ -290,27 +290,26 @@ directIpc.handle<K extends keyof TInvokes>(
   handler: (sender: DirectIpcTarget, ...args: Parameters<TInvokes[K]>) => ReturnType<TInvokes[K]>
 ): void
 
-// Invoke handler (sender)
-const result = await directIpc.invokeIdentifier<K extends keyof TInvokes>(
-  identifier: TIdentifiers | RegExp,
+// Unified invoke method with TargetSelector (single targets only)
+const result = await directIpc.invoke<K extends keyof TInvokes>(
+  target: Omit<TargetSelector<TIdentifiers>, 'allIdentifiers' | 'allUrls'>,
   channel: K,
-  timeout?: number,
-  ...args: Parameters<TInvokes[K]>
+  ...args: [...Parameters<TInvokes[K]>, options?: InvokeOptions]
 ): Promise<Awaited<ReturnType<TInvokes[K]>>>
 
-const result = await directIpc.invokeWebContentsId<K extends keyof TInvokes>(
-  webContentsId: number,
-  channel: K,
-  timeout?: number,
-  ...args: Parameters<TInvokes[K]>
-): Promise<Awaited<ReturnType<TInvokes[K]>>>
+// Examples:
+const result = await directIpc.invoke({ identifier: 'output' }, 'calculate', 5, 10)
+const result = await directIpc.invoke({ webContentsId: 5 }, 'getData')
+const result = await directIpc.invoke({ url: /^output/ }, 'process', data)
 
-const result = await directIpc.invokeUrl<K extends keyof TInvokes>(
-  url: string | RegExp,
-  channel: K,
-  timeout?: number,
-  ...args: Parameters<TInvokes[K]>
-): Promise<Awaited<ReturnType<TInvokes[K]>>>
+// With timeout option
+const result = await directIpc.invoke(
+  { identifier: 'output' },
+  'calculate',
+  5,
+  10,
+  { timeout: 5000 }
+)
 ```
 
 #### Utility Methods
@@ -381,9 +380,9 @@ All send/receive methods available, same signatures as DirectIpcRenderer:
 
 ```typescript
 // Send throttled
-directIpc.throttled.sendToIdentifier('output', 'position', x, y)
-directIpc.throttled.sendToWebContentsId(5, 'volume', level)
-directIpc.throttled.sendToUrl(/output/, 'progress', percent)
+directIpc.throttled.send({ identifier: 'output' }, 'position', x, y)
+directIpc.throttled.send({ webContentsId: 5 }, 'volume', level)
+directIpc.throttled.send({ url: /output/ }, 'progress', percent)
 
 // Receive throttled
 directIpc.throttled.on('position', (sender, x, y) => {
@@ -392,10 +391,10 @@ directIpc.throttled.on('position', (sender, x, y) => {
 
 // Proxy methods (non-throttled)
 directIpc.throttled.handle('get-data', async (sender, id) => data)
-await directIpc.throttled.invokeIdentifier('output', 'calculate', a, b)
+await directIpc.throttled.invoke({ identifier: 'output' }, 'calculate', a, b)
 
 // Access underlying directIpc
-directIpc.throttled.directIpc.sendToIdentifier('output', 'important-event')
+directIpc.throttled.directIpc.send({ identifier: 'output' }, 'important-event')
 
 // Access localEvents
 directIpc.throttled.localEvents.on('target-added', (target) => {})
@@ -407,9 +406,9 @@ directIpc.throttled.localEvents.on('target-added', (target) => {})
 
 ```typescript
 // In one event loop tick:
-directIpc.throttled.sendToIdentifier('output', 'position', 1, 1)
-directIpc.throttled.sendToIdentifier('output', 'position', 2, 2)
-directIpc.throttled.sendToIdentifier('output', 'position', 3, 3)
+directIpc.throttled.send({ identifier: 'output' }, 'position', 1, 1)
+directIpc.throttled.send({ identifier: 'output' }, 'position', 2, 2)
+directIpc.throttled.send({ identifier: 'output' }, 'position', 3, 3)
 
 // Only position (3, 3) is sent on next microtask (~1ms later)
 // Messages to different targets/channels are NOT coalesced
@@ -454,7 +453,7 @@ const directIpcMain = new DirectIpcMain({
 
 ```typescript
 // Sender
-await directIpc.sendToIdentifier('output', 'play-button-clicked')
+await directIpc.send({ identifier: 'output' }, 'play-button-clicked')
 
 // Receiver
 directIpc.on('play-button-clicked', (sender) => {
@@ -467,7 +466,7 @@ directIpc.on('play-button-clicked', (sender) => {
 ```typescript
 // Sender (high-frequency updates)
 videoPlayer.on('timeupdate', (currentTime) => {
-  directIpc.throttled.sendToIdentifier('controller', 'playback-position', currentTime)
+  directIpc.throttled.send({ identifier: 'controller' }, 'playback-position', currentTime)
 })
 
 // Receiver
@@ -491,11 +490,11 @@ directIpc.handle('get-project-data', async (sender, projectId) => {
 
 // Sender (invoke handler)
 try {
-  const project = await directIpc.invokeIdentifier(
-    'controller',
+  const project = await directIpc.invoke(
+    { identifier: 'controller' },
     'get-project-data',
-    5000, // 5 second timeout
-    'project-123'
+    'project-123',
+    { timeout: 5000 } // 5 second timeout
   )
   console.log(project.name)
 } catch (error) {
@@ -507,10 +506,10 @@ try {
 
 ```typescript
 // Send to all windows matching pattern
-await directIpc.sendToAllIdentifiers(/output-.*/, 'theme-changed', 'dark')
+await directIpc.send({ allIdentifiers: /output-.*/ }, 'theme-changed', 'dark')
 
 // Send to all windows with specific URL
-await directIpc.sendToAllUrls(/^settings:\/\//, 'preference-updated', 'volume', 75)
+await directIpc.send({ allUrls: /^settings:\/\// }, 'preference-updated', 'volume', 75)
 ```
 
 ### Pattern 5: Mixed Throttled/Non-Throttled
@@ -540,7 +539,7 @@ directIpc.handle('risky-operation', async (sender, data) => {
 
 // Caller handles rejection
 try {
-  const result = await directIpc.invokeIdentifier('worker', 'risky-operation', myData)
+  const result = await directIpc.invoke({ identifier: 'worker' }, 'risky-operation', myData)
 } catch (error) {
   console.error('Operation failed:', error.message)
 }
@@ -561,7 +560,7 @@ directIpc.localEvents.on('target-added', (target) => {
   console.log(`New window: ${target.identifier}`)
 
   // Send welcome message
-  directIpc.sendToWebContentsId(target.webContentsId, 'welcome')
+  directIpc.send({ webContentsId: target.webContentsId }, 'welcome')
 })
 
 // Listen for windows closing
@@ -638,7 +637,7 @@ describe('My component', () => {
     )
 
     // Spy on send method
-    const spy = vi.spyOn(directIpc, 'sendToIdentifier').mockResolvedValue()
+    const spy = vi.spyOn(directIpc, 'send').mockResolvedValue()
 
     // Test your code
     await myComponent.onClick()
@@ -794,7 +793,7 @@ ipcMain.on('message-to-output', (event, data) => {
 })
 
 // After (DirectIPC)
-await directIpc.sendToIdentifier('output', 'message', data)
+await directIpc.send({ identifier: 'output' }, 'message', data)
 directIpc.on('message', (sender, data) => {
   // handle message
 })
