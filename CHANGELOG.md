@@ -1,3 +1,10 @@
+## <small>1.0.1 (2025-12-03)</small>
+
+* Merge pull request #2 from jjeff/fix/npm-publish ([c343dd8](https://github.com/jjeff/electron-direct-ipc/commit/c343dd8)), closes [#2](https://github.com/jjeff/electron-direct-ipc/issues/2)
+* Merge pull request #3 from jjeff/fix/npm ([5b45d23](https://github.com/jjeff/electron-direct-ipc/commit/5b45d23)), closes [#3](https://github.com/jjeff/electron-direct-ipc/issues/3)
+* fix: npm publishing ([0d92f6f](https://github.com/jjeff/electron-direct-ipc/commit/0d92f6f))
+* fix: npm publishing ([196c057](https://github.com/jjeff/electron-direct-ipc/commit/196c057))
+
 ## 1.0.0 (2025-12-03)
 
 * initial commit ([796392a](https://github.com/jjeff/electron-direct-ipc/commit/796392a))
