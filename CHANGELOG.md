@@ -1,3 +1,7 @@
+## <small>1.0.5 (2025-12-04)</small>
+
+* fix: github pages ([6534be9](https://github.com/jjeff/electron-direct-ipc/commit/6534be9))
+
 ## <small>1.0.4 (2025-12-04)</small>
 
 * fix: refresh docs ([7c7e930](https://github.com/jjeff/electron-direct-ipc/commit/7c7e930))
