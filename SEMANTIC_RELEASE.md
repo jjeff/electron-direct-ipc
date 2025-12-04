@@ -144,21 +144,38 @@ npm run semantic-release -- --dry-run --no-ci
 Add these secrets to your GitHub repository (Settings → Secrets and variables → Actions):
 
 1. **`GITHUB_TOKEN`** - Automatically provided by GitHub Actions (no setup needed)
-2. **`NPM_TOKEN`** - Your npm publishing token
-   - Create at: https://www.npmjs.com/settings/YOUR_USERNAME/tokens
-   - **Recommended**: Use "Granular Access Token" type
-   - Permissions: "Read and write" for packages
-   - Expiration: Set to 1 year (you'll need to rotate it)
 
-   > **Note on OIDC Trusted Publishing**: While npm now supports OIDC trusted publishing (which eliminates the need for tokens), semantic-release doesn't yet fully support it. The `@semantic-release/npm` plugin still requires `NPM_TOKEN` during the verification phase. Once semantic-release adds full OIDC support, we can migrate to token-less publishing.
+**That's it!** No npm token needed. This project uses **OIDC Trusted Publishing** to publish to npm securely without managing tokens.
+
+### OIDC Trusted Publishing
+
+This project uses npm's OIDC trusted publishing feature (available in `@semantic-release/npm` v13.1.0+), which eliminates the need for npm tokens.
+
+**How it works:**
+- GitHub Actions generates a short-lived OIDC token during the workflow
+- npm verifies the token cryptographically matches your configured trusted publisher
+- Package is published with automatic provenance attestations
+- No long-lived tokens to manage, rotate, or accidentally expose
+
+**Setup on npm:**
+1. Go to https://www.npmjs.com/package/electron-direct-ipc/access
+2. Under "Publishing access" → "Trusted publishers" → "Add trusted publisher"
+3. Select "GitHub Actions" and configure:
+   - **Organization/User**: `jjeff`
+   - **Repository**: `electron-direct-ipc`
+   - **Workflow**: `release.yml`
+   - **Environment**: Leave blank
+
+**Workflow requirements:**
+- `id-token: write` permission (already configured in `.github/workflows/release.yml`)
+- Node.js 24+ (required by semantic-release v25 and this project)
 
 ### Provenance Attestations
 
-This project is configured to publish with **provenance attestations**, which provide cryptographic proof that your package was built in GitHub Actions. This enhances supply chain security.
+Provenance attestations are **automatically generated** when using OIDC trusted publishing. These provide cryptographic proof that your package was built in GitHub Actions, enhancing supply chain security.
 
-- Configured in `.releaserc.json` with `"provenance": true`
-- Requires `id-token: write` permission in the workflow (already configured)
 - Users can verify your package with: `npm audit signatures`
+- View attestations on the npm package page
 
 ### Workflows
 

@@ -43,7 +43,6 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Note: OIDC trusted publishing is not yet fully supported by semantic-release
-          # For now, we use a granular access token. Provenance is still enabled via the config.
+          # NPM_TOKEN is no longer needed - using OIDC trusted publishing via id-token permission
+          # Provenance attestations are automatically enabled with OIDC
         run: npx semantic-release

@@ -73,14 +73,17 @@
   "author": "Jeff Robbins <jeff@jjeff.com>",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@playwright/test": "^1.57.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.6",
-    "@semantic-release/npm": "^12.0.2",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.1.0",
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
@@ -89,7 +92,7 @@
     "gh-pages": "^6.3.0",
     "husky": "^9.1.7",
     "prettier": "^3.7.3",
-    "semantic-release": "^24.2.9",
+    "semantic-release": "^25.0.0",
     "typedoc": "^0.28.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.1",
