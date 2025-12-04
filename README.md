@@ -1,5 +1,11 @@
-[![API Docs](https://img.shields.io/badge/API%20Docs-typedoc-blue?logo=typescript&labelColor=222)](https://jjeff.github.io/electron-direct-ipc/)
-[![semantic-release: conventionalcommits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+[![npm version](https://img.shields.io/npm/v/electron-direct-ipc.svg)](https://www.npmjs.com/package/electron-direct-ipc)
+[![npm downloads](https://img.shields.io/npm/dm/electron-direct-ipc.svg)](https://www.npmjs.com/package/electron-direct-ipc)
+[![CI](https://github.com/jjeff/electron-direct-ipc/actions/workflows/ci.yml/badge.svg)](https://github.com/jjeff/electron-direct-ipc/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
+[![Package Format](https://img.shields.io/badge/package-ESM%20%7C%20CJS-orange.svg)](https://nodejs.org/api/packages.html)
+[![API Docs](https://img.shields.io/badge/API%20Docs-TypeDoc-informational.svg)](https://jjeff.github.io/electron-direct-ipc/)
+[![npm provenance](https://img.shields.io/badge/provenance-OIDC-success.svg)](https://docs.npmjs.com/generating-provenance-statements)
 
 # Electron Direct IPC
 
@@ -15,6 +21,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 - 🎯 **Flexible Targeting** - Send by identifier, webContentsId, or URL pattern
 - 🔄 **Bidirectional** - Request/response with async invoke/handle pattern
 - 📡 **Event-Driven** - Built on EventEmitter with automatic lifecycle management
+- 📦 **Dual Format** - Works with both ESM (`import`) and CommonJS (`require`)
 - 🧪 **Well Tested** - Comprehensive unit, integration, and E2E tests with full coverage
 
 ## Table of Contents
@@ -36,12 +43,6 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 
 ```bash
 npm install electron-direct-ipc
-```
-
-Or if this is part of your Electron monorepo:
-
-```bash
-# Already included in your dependencies
 ```
 
 ## Quick Start
