@@ -1,3 +1,8 @@
+## <small>1.0.2 (2025-12-04)</small>
+
+* Merge pull request #4 from jjeff/fix/npm-OIDC ([23c6f55](https://github.com/jjeff/electron-direct-ipc/commit/23c6f55)), closes [#4](https://github.com/jjeff/electron-direct-ipc/issues/4)
+* fix(ci): npm publish with OIDC ([52e897b](https://github.com/jjeff/electron-direct-ipc/commit/52e897b))
+
 ## <small>1.0.1 (2025-12-03)</small>
 
 * Merge pull request #2 from jjeff/fix/npm-publish ([c343dd8](https://github.com/jjeff/electron-direct-ipc/commit/c343dd8)), closes [#2](https://github.com/jjeff/electron-direct-ipc/issues/2)
