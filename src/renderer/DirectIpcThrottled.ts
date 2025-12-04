@@ -1,23 +1,14 @@
-import { DirectIpcLogger } from '../common/index.js'
-import { DirectIpcTarget } from '../common/DirectIpcCommunication.js'
 import {
-  DirectIpcEventMap,
-  DirectIpcRenderer,
+  DirectIpcLogger,
   EventMap,
   InvokeMap,
   TargetSelector,
   TypedEventEmitter,
-} from './DirectIpcRenderer.js'
-
-/**
- * Prepends 'sender: DirectIpcTarget' to every handler function in an EventMap
- */
-type WithSender<T extends EventMap> = {
-  [K in keyof T]: (
-    sender: DirectIpcTarget,
-    ...args: Parameters<T[K]>
-  ) => ReturnType<T[K]>
-}
+  WithSender,
+  DirectIpcEventMap,
+} from '../common/index.js'
+import { DirectIpcTarget } from '../common/DirectIpcCommunication.js'
+import { DirectIpcRenderer } from './DirectIpcRenderer.js'
 
 /**
  * ## DirectIpcThrottled - Lossy Message Coalescing
@@ -412,7 +403,7 @@ export class DirectIpcThrottled<
           return Promise.resolve()
         }
 
-        return this.directIpc.send(targetSelector, message, ...(args as any))
+        return this.directIpc.send(targetSelector, message, ...(args as never))
       })
     )
   }
@@ -447,7 +438,7 @@ export class DirectIpcThrottled<
       // Register internal coalescing handler on directIpc (only once per channel)
       this.directIpc.on(
         event,
-        this.createCoalescingHandler(event as keyof TMessageMap) as any
+        this.createCoalescingHandler(event as keyof TMessageMap) as never
       )
     }
 

@@ -1,33 +1,26 @@
 import { ipcRenderer } from 'electron'
-import { EventEmitter } from 'events'
 import {
   DIRECT_IPC_CHANNELS,
   DirectIpcMapUpdateMessage,
   DirectIpcPortMessage,
   DirectIpcTarget,
-} from '../common/DirectIpcCommunication.js'
+  EventMap,
+  InvokeMap,
+  Prettify,
+  InvokeOptions,
+  TargetSelector,
+  DirectIpcMessage,
+  InvokeMessage,
+  InvokeResponse,
+  WithSender,
+  DirectIpcBase,
+  CachedPort,
+} from '../common/index.js'
 import {
   DirectIpcLogger,
   consoleLogger,
 } from '../common/DirectIpcLogger.js'
 import { DirectIpcThrottled } from './DirectIpcThrottled.js'
-
-type Awaitable<T> = T | Promise<T>
-
-/**
- * Utility type to expand/prettify complex types in IDE tooltips
- */
-type Prettify<T> = {
-  [K in keyof T]: T[K]
-} & {}
-
-export interface EventMap {
-  [key: string]: (...args: any[]) => any
-}
-
-export interface InvokeMap {
-  [key: string]: (...args: any[]) => Awaitable<any>
-}
 
 /**
  * Options for DirectIpcRenderer
@@ -49,120 +42,6 @@ export interface DirectIpcRendererDependencies {
 }
 
 /**
- * Options for invoke calls
- */
-export interface InvokeOptions {
-  timeout?: number
-}
-
-/**
- * Target selector for send() and invoke() methods
- * Specifies which renderer(s) to communicate with
- *
- * @template TId - Union of allowed identifier strings
- */
-export type TargetSelector<TId extends string = string> =
-  | { identifier: TId | RegExp }
-  | { webContentsId: number }
-  | { url: string | RegExp }
-  | { allIdentifiers: TId | RegExp }
-  | { allUrls: string | RegExp }
-
-/**
- * Message format for regular DirectIpc messages
- * args is the tuple of arguments expected by the event handler (Parameters<> of the handler function)
- */
-export type DirectIpcMessage<
-  TMessageMap extends EventMap = EventMap,
-  K extends keyof TMessageMap = keyof TMessageMap,
-> = {
-  message: K
-  args: Parameters<TMessageMap[K]>
-}
-
-/**
- * Message format for invoke/handle pattern
- */
-type InvokeMessage = {
-  type: 'invoke'
-  channel: string
-  requestId: string
-  args: unknown[]
-}
-
-type InvokeResponse = {
-  type: 'invoke-response'
-  requestId: string
-  success: boolean
-  data?: unknown
-  error?: string
-}
-
-/**
- * Handler function type for invoke/handle pattern
- */
-type InvokeHandler<T extends InvokeMap = InvokeMap> = (
-  ...args: Parameters<T[keyof T]>
-) => Promise<ReturnType<T[keyof T]>> | ReturnType<T[keyof T]>
-
-/**
- * Base event map for DirectIpcRenderer internal events
- * These events do NOT include sender as first argument
- */
-export type DirectIpcEventMap = {
-  'target-added': (target: DirectIpcTarget) => void
-  'target-removed': (target: DirectIpcTarget) => void
-  'message-port-added': (target: DirectIpcTarget) => void
-  'map-updated': (map: DirectIpcTarget[]) => void
-  message: (sender: DirectIpcTarget, message: unknown) => void
-}
-
-/**
- * Cached port information
- */
-interface CachedPort {
-  port: MessagePort
-  info: DirectIpcTarget
-}
-
-/**
- * Prepends 'sender: DirectIpcTarget' to every handler function in an EventMap (event name already identifies channel).
- */
-type WithSender<T extends EventMap> = {
-  [K in keyof T]: (
-    sender: DirectIpcTarget,
-    ...args: Parameters<T[K]>
-  ) => ReturnType<T[K]>
-}
-
-export interface TypedEventEmitter<Events extends EventMap> {
-  addListener<E extends keyof Events>(event: E, listener: Events[E]): this
-  on<E extends keyof Events>(event: E, listener: Events[E]): this
-  once<E extends keyof Events>(event: E, listener: Events[E]): this
-  prependListener<E extends keyof Events>(event: E, listener: Events[E]): this
-  prependOnceListener<E extends keyof Events>(
-    event: E,
-    listener: Events[E]
-  ): this
-
-  off<E extends keyof Events>(event: E, listener: Events[E]): this
-  removeAllListeners<E extends keyof Events>(event?: E): this
-  removeListener<E extends keyof Events>(event: E, listener: Events[E]): this
-  emit<Event extends keyof Events>(
-    event: Event | Event[],
-    ...values: Parameters<Events[Event]>
-  ): boolean
-  // The sloppy `eventNames()` return type is to mitigate type incompatibilities - see #5
-  eventNames(): (keyof Events | string | symbol)[]
-  rawListeners<E extends keyof Events>(event: E): Events[E][]
-  listeners<E extends keyof Events>(event: E): Events[E][]
-  listenerCount<E extends keyof Events>(event: E): number
-
-  getMaxListeners(): number
-  setMaxListeners(maxListeners: number): this
-}
-
-/**
  * Renderer process DirectIpc client
  * Provides type-safe direct communication between renderer processes
  * @template TMessageMap - Map of message channels to their handler function signatures (WITHOUT sender)
@@ -176,13 +55,17 @@ export class DirectIpcRenderer<
   TMessageMap extends EventMap = EventMap,
   TInvokeMap extends InvokeMap = InvokeMap,
   TIdentifierStrings extends string = string,
-> extends (EventEmitter as {
-  new <TMessageMap extends EventMap>(): Prettify<
-    TypedEventEmitter<WithSender<TMessageMap>>
-  >
-})<TMessageMap> {
+> extends DirectIpcBase<TMessageMap, TInvokeMap, TIdentifierStrings, MessagePort> {
   // singleton
   private static _instance: DirectIpcRenderer | null = null
+
+  /**
+   * Check if running in renderer process
+   * Protected static method for easy mocking in tests
+   */
+  protected static isRendererProcess(): boolean {
+    return process && process.type === 'renderer'
+  }
 
   /**
    * Get the singleton instance
@@ -198,6 +81,9 @@ export class DirectIpcRenderer<
   >(
     options?: DirectIpcRendererOptions<TProcessIdentifier>
   ): DirectIpcRenderer<TMessageMap, TInvokeMap, TProcessIdentifier> {
+    if (!DirectIpcRenderer.isRendererProcess()) {
+      throw new Error('DirectIpcRenderer.instance() can only be called from the renderer process')
+    }
     if (!DirectIpcRenderer._instance) {
       DirectIpcRenderer._instance = DirectIpcRenderer._createInstance(options)
     }
@@ -250,39 +136,8 @@ export class DirectIpcRenderer<
   /** Dependencies */
   private d: Required<DirectIpcRendererDependencies>
 
-  /** Logger */
-  private log: DirectIpcLogger
-
-  /** Current map of all registered renderers */
-  private map: DirectIpcTarget[] = []
-
-  /** Cached ports to other renderers, keyed by webContentsId */
-  private portCache = new Map<number, CachedPort>()
-
-  /** Registry of handlers for invoke/handle pattern */
-  private handlers = new Map<string, InvokeHandler>()
-
-  /** Pending invoke requests waiting for responses */
-  private pendingInvokes = new Map<
-    string,
-    {
-      resolve: (value: unknown) => void
-      reject: (error: Error) => void
-      timeout: NodeJS.Timeout
-    }
-  >()
-
-  /** Counter for generating unique request IDs */
-  private requestIdCounter = 0
-
-  /** Default timeout for invoke calls (ms) */
-  private defaultTimeout = 5000
-
-  /** This renderer's optional identifier */
-  private myIdentifier?: TIdentifierStrings
-
-  public readonly localEvents =
-    new EventEmitter() as TypedEventEmitter<DirectIpcEventMap>
+  /** Cached ports to other processes (renderers and utilities), keyed by process ID */
+  private portCache = new Map<number, CachedPort<MessagePort>>()
 
   /**
    * Throttled message sending/receiving for high-frequency updates.
@@ -314,9 +169,7 @@ export class DirectIpcRenderer<
     this.log = options.log ?? consoleLogger
 
     // Set default timeout from options if provided
-    if (options.defaultTimeout !== undefined) {
-      this.defaultTimeout = options.defaultTimeout
-    }
+    this.defaultTimeout = options.defaultTimeout ?? 5000
 
     this.setupIpcListeners()
     this.subscribe(options.identifier)
@@ -324,6 +177,204 @@ export class DirectIpcRenderer<
     // Initialize throttled wrapper after other setup
     this.throttled = new DirectIpcThrottled(this, { log: this.log })
   }
+
+  // ===== IMPLEMENT ABSTRACT METHODS FROM BASE CLASS =====
+
+  /**
+   * Get unique key for caching a port (uses process ID)
+   */
+  protected getPortCacheKey(target: DirectIpcTarget): number {
+    return target.id
+  }
+
+  /**
+   * Send message via a MessagePort
+   */
+  protected postMessageToPort(port: MessagePort, message: unknown): void {
+    port.postMessage(message)
+  }
+
+  /**
+   * Set up message listener on a MessagePort
+   */
+  protected setupPortListener(
+    port: MessagePort,
+    handler: (data: unknown) => void
+  ): void {
+    port.onmessage = (e: MessageEvent) => handler(e.data)
+  }
+
+  /**
+   * Clean up a port when target is removed
+   */
+  protected cleanupPort(target: DirectIpcTarget): void {
+    const cached = this.portCache.get(target.id)
+    if (cached) {
+      cached.port.close()
+      this.portCache.delete(target.id)
+    }
+  }
+
+  /**
+   * Close all cached ports
+   */
+  public closeAllPorts(): void {
+    for (const cached of this.portCache.values()) {
+      cached.port.close()
+    }
+    this.portCache.clear()
+  }
+
+  /**
+   * Find targets matching a selector
+   */
+  protected findTargets(
+    selector: TargetSelector<TIdentifierStrings>
+  ): DirectIpcTarget[] {
+    // Handle "all" patterns
+    if ('allIdentifiers' in selector) {
+      const identifier = selector.allIdentifiers
+      const regex =
+        typeof identifier === 'string' ? new RegExp(identifier) : identifier
+      return this.map.filter((p) => p.identifier && regex.test(p.identifier))
+    }
+
+    if ('allUrls' in selector) {
+      const url = selector.allUrls
+      const regex = typeof url === 'string' ? new RegExp(url) : url
+      return this.map.filter((p) => p.url && regex.test(p.url))
+    }
+
+    // Handle single target patterns
+    if ('webContentsId' in selector) {
+      const match = this.map.find((t) => t.webContentsId === selector.webContentsId)
+      return match ? [match] : []
+    }
+
+    if ('identifier' in selector) {
+      if (typeof selector.identifier === 'string') {
+        const match = this.map.find((t) => t.identifier === selector.identifier)
+        return match ? [match] : []
+      } else if (selector.identifier instanceof RegExp) {
+        const regex = selector.identifier
+        const matches = this.map.filter(
+          (t) => t.identifier && regex.test(t.identifier)
+        )
+        if (matches.length > 1) {
+          throw new Error(
+            'DirectIpcRenderer::Multiple matches found for identifier regex'
+          )
+        }
+        return matches
+      }
+    }
+
+    if ('url' in selector) {
+      if (typeof selector.url === 'string') {
+        const match = this.map.find((t) => t.url === selector.url)
+        return match ? [match] : []
+      } else if (selector.url instanceof RegExp) {
+        const regex = selector.url
+        const matches = this.map.filter((t) => t.url && regex.test(t.url))
+        if (matches.length > 1) {
+          throw new Error(
+            'DirectIpcRenderer::Multiple matches found for URL regex'
+          )
+        }
+        return matches
+      }
+    }
+
+    return []
+  }
+
+  /**
+   * Get or create a port to a target renderer or utility process
+   */
+  protected async getPort(target: {
+    webContentsId?: number
+    identifier?: TIdentifierStrings | RegExp
+    url?: string | RegExp
+  }): Promise<MessagePort> {
+    // Try to resolve the target to a process ID using our local map
+    // This allows us to check the cache even when searching by identifier/URL
+    const processId = this.resolveTargetToProcessId(target)
+
+    // Check if we already have a cached port for this process ID
+    if (processId !== undefined) {
+      const cached = this.portCache.get(processId)
+      if (cached) {
+        this.log.silly?.(
+          `DirectIpcRenderer::getPort - Using cached port for process ${processId}`
+        )
+        return cached.port
+      }
+    }
+
+    // Set up promise to wait for port before invoking
+    const portPromise = new Promise<MessagePort>((resolve, reject) => {
+      const messagePortAddedListener = (addedTarget: DirectIpcTarget) => {
+        // Check if this is the target we're waiting for
+        let isMatch = false
+
+        if (target.webContentsId !== undefined) {
+          isMatch = addedTarget.webContentsId === target.webContentsId
+        } else if (target.identifier !== undefined) {
+          const regex =
+            typeof target.identifier === 'string'
+              ? new RegExp(`^${target.identifier}$`)
+              : target.identifier
+          isMatch = addedTarget.identifier
+            ? regex.test(addedTarget.identifier)
+            : false
+        } else if (target.url !== undefined) {
+          const regex =
+            typeof target.url === 'string' ? new RegExp(target.url) : target.url
+          isMatch = addedTarget.url ? regex.test(addedTarget.url) : false
+        }
+
+        if (isMatch) {
+          clearTimeout(timeout)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Type assertion needed due to EventEmitter type limitations with locally scoped listeners
+          this.localEvents.off('message-port-added', messagePortAddedListener as any)
+          const cached = this.portCache.get(addedTarget.id)
+          if (cached) {
+            resolve(cached.port)
+          } else {
+            reject(new Error('Port was added but not cached'))
+          }
+        }
+      }
+
+      const timeout = setTimeout(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Type assertion needed due to EventEmitter type limitations with locally scoped listeners
+        this.localEvents.off('message-port-added', messagePortAddedListener as any)
+        this.log.error?.(
+          `DirectIpcRenderer::getPort - Timeout waiting for port: ${JSON.stringify(target)}`,
+          target
+        )
+        reject(new Error('Timeout waiting for MessagePort'))
+      }, this.defaultTimeout)
+
+      // Listen for the message-port-added event
+      this.localEvents.on('message-port-added', messagePortAddedListener)
+    })
+
+    // Request port from main process
+    const success = await this.d.ipcRenderer.invoke(
+      DIRECT_IPC_CHANNELS.GET_PORT,
+      target
+    )
+
+    if (!success) {
+      throw new Error('DirectIpc: Failed to get port for target')
+    }
+
+    // Wait for the port to arrive via the event listener
+    return portPromise
+  }
+
+  // ===== RENDERER-SPECIFIC METHODS =====
 
   /**
    * Set up IPC listeners for messages from main process
@@ -395,45 +446,16 @@ export class DirectIpcRenderer<
   }
 
   /**
-   * Handle incoming map update
-   */
-  private handleMapUpdate(newMap: DirectIpcTarget[]): void {
-    this.log.silly?.('DirectIpcRenderer::handleMapUpdate', newMap)
-
-    // Detect removed targets
-    const newWebContentsIds = new Set(newMap.map((t) => t.webContentsId))
-    for (const oldTarget of this.map) {
-      if (!newWebContentsIds.has(oldTarget.webContentsId)) {
-        this.localEvents.emit('target-removed', oldTarget)
-        // Clean up cached port
-        const cached = this.portCache.get(oldTarget.webContentsId)
-        if (cached) {
-          cached.port.close()
-          this.portCache.delete(oldTarget.webContentsId)
-        }
-      }
-    }
-
-    // Detect added targets
-    const oldWebContentsIds = new Set(this.map.map((t) => t.webContentsId))
-    for (const newTarget of newMap) {
-      if (!oldWebContentsIds.has(newTarget.webContentsId)) {
-        this.localEvents.emit('target-added', newTarget)
-      }
-    }
-
-    this.map = newMap
-    this.localEvents.emit('map-updated', newMap)
-  }
-
-  /**
    * Handle incoming MessagePort from main process
    */
   private handlePortMessage(
     port: MessagePort,
     senderInfo: DirectIpcTarget
   ): void {
-    this.log.silly?.('DirectIpcRenderer::handlePortMessage', senderInfo)
+    const senderStr = senderInfo.identifier ? `"${senderInfo.identifier}"` : `#${senderInfo.id}`
+    this.log.info?.(
+      `DirectIpcRenderer::handlePortMessage - Received port from ${senderStr} (${senderInfo.processType})`
+    )
 
     // Set up port message handler
     port.onmessage = (
@@ -469,15 +491,15 @@ export class DirectIpcRenderer<
     // Set up port close handler
     port.addEventListener('close', () => {
       this.log.silly?.(
-        `DirectIpcRenderer::port.close - port closed for webContentsId ${senderInfo.webContentsId}`
+        `DirectIpcRenderer::port.close - port closed for ${senderInfo.identifier || `process-${senderInfo.id}` || 'unknown'}`
       )
-      this.portCache.delete(senderInfo.webContentsId)
+      this.portCache.delete(senderInfo.id)
     })
 
     port.start()
 
-    // Cache the port
-    this.portCache.set(senderInfo.webContentsId, {
+    // Cache the port using process ID
+    this.portCache.set(senderInfo.id, {
       port,
       info: senderInfo,
     })
@@ -487,7 +509,73 @@ export class DirectIpcRenderer<
   }
 
   /**
+   * Resolve a target to its process ID using the local map
+   */
+  private resolveTargetToProcessId(target: {
+    webContentsId?: number
+    identifier?: TIdentifierStrings | RegExp
+    url?: string | RegExp
+  }): number | undefined {
+    // If webContentsId is provided, find matching process by webContentsId
+    if (target.webContentsId !== undefined) {
+      const match = this.map.find((t) => t.webContentsId === target.webContentsId)
+      return match?.id
+    }
+
+    // Search by identifier
+    if (target.identifier !== undefined) {
+      if (typeof target.identifier === 'string') {
+        // Exact match
+        const match = this.map.find((t) => t.identifier === target.identifier)
+        return match?.id
+      } else if (target.identifier instanceof RegExp) {
+        const regex = target.identifier
+
+        const matches = this.map.filter(
+          (t) => t.identifier && regex.test(t.identifier)
+        )
+
+        if (matches.length === 1) {
+          return matches[0]!.id
+        } else if (matches.length > 1) {
+          throw new Error(
+            'DirectIpcRenderer::Multiple matches found for identifier regex'
+          )
+        }
+        // No matches - return undefined
+        return undefined
+      }
+    }
+
+    // Search by URL
+    if (target.url !== undefined) {
+      if (typeof target.url === 'string') {
+        // Exact match
+        const match = this.map.find((t) => t.url === target.url)
+        return match?.id
+      } else if (target.url instanceof RegExp) {
+        const regex = target.url
+
+        const matches = this.map.filter((t) => t.url && regex.test(t.url))
+
+        if (matches.length === 1) {
+          return matches[0]!.id
+        } else if (matches.length > 1) {
+          throw new Error(
+            'DirectIpcRenderer::Multiple matches found for URL regex'
+          )
+        }
+        // No matches - return undefined
+        return undefined
+      }
+    }
+
+    return undefined
+  }
+
+  /**
    * Resolve a target to its webContentsId using the local map
+   * @deprecated Use resolveTargetToProcessId instead
    */
   public resolveTargetToWebContentsId(target: {
     webContentsId?: number
@@ -529,11 +617,11 @@ export class DirectIpcRenderer<
       if (typeof target.url === 'string') {
         // Exact match
         const match = this.map.find((t) => t.url === target.url)
-        return match ? match.webContentsId : undefined
+        return match?.webContentsId
       } else if (target.url instanceof RegExp) {
         const regex = target.url
 
-        const matches = this.map.filter((t) => regex.test(t.url))
+        const matches = this.map.filter((t) => t.url && regex.test(t.url))
 
         if (matches.length === 1) {
           return matches[0]!.webContentsId
@@ -548,90 +636,6 @@ export class DirectIpcRenderer<
     }
 
     return undefined
-  }
-
-  /**
-   * Get or create a port to a target renderer
-   */
-  private async getPort(target: {
-    webContentsId?: number
-    identifier?: TIdentifierStrings | RegExp
-    url?: string | RegExp
-  }): Promise<MessagePort> {
-    // Try to resolve the target to a webContentsId using our local map
-    // This allows us to check the cache even when searching by identifier/URL
-    const webContentsId = this.resolveTargetToWebContentsId(target)
-
-    // Check if we already have a cached port for this webContentsId
-    if (webContentsId !== undefined) {
-      const cached = this.portCache.get(webContentsId)
-      if (cached) {
-        this.log.silly?.(
-          `DirectIpcRenderer::getPort - Using cached port for webContentsId ${webContentsId}`
-        )
-        return cached.port
-      }
-    }
-
-    // Set up promise to wait for port before invoking
-    const portPromise = new Promise<MessagePort>((resolve, reject) => {
-      const messagePortAddedListener = (addedTarget: DirectIpcTarget) => {
-        // Check if this is the target we're waiting for
-        let isMatch = false
-
-        if (target.webContentsId !== undefined) {
-          isMatch = addedTarget.webContentsId === target.webContentsId
-        } else if (target.identifier !== undefined) {
-          const regex =
-            typeof target.identifier === 'string'
-              ? new RegExp(`^${target.identifier}$`)
-              : target.identifier
-          isMatch = addedTarget.identifier
-            ? regex.test(addedTarget.identifier)
-            : false
-        } else if (target.url !== undefined) {
-          const regex =
-            typeof target.url === 'string' ? new RegExp(target.url) : target.url
-          isMatch = regex.test(addedTarget.url)
-        }
-
-        if (isMatch) {
-          clearTimeout(timeout)
-          this.off('message-port-added', messagePortAddedListener as any)
-          const cached = this.portCache.get(addedTarget.webContentsId)
-          if (cached) {
-            resolve(cached.port)
-          } else {
-            reject(new Error('Port was added but not cached'))
-          }
-        }
-      }
-
-      const timeout = setTimeout(() => {
-        this.off('message-port-added', messagePortAddedListener as any)
-        this.log.error?.(
-          `DirectIpcRenderer::getPort - Timeout waiting for port: ${JSON.stringify(target)}`,
-          target
-        )
-        reject(new Error('Timeout waiting for MessagePort'))
-      }, this.defaultTimeout)
-
-      // Listen for the message-port-added event
-      this.localEvents.on('message-port-added', messagePortAddedListener)
-    })
-
-    // Request port from main process
-    const success = await this.d.ipcRenderer.invoke(
-      DIRECT_IPC_CHANNELS.GET_PORT,
-      target
-    )
-
-    if (!success) {
-      throw new Error('DirectIpc: Failed to get port for target')
-    }
-
-    // Wait for the port to arrive via the event listener
-    return portPromise
   }
 
   /**
@@ -656,111 +660,58 @@ export class DirectIpcRenderer<
   async send<T extends keyof TMessageMap>(
     target: TargetSelector<TIdentifierStrings>,
     message: T,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 'any' used in conditional type for parameter extraction
     ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
   ): Promise<void> {
-    // Handle "all" patterns
-    if ('allIdentifiers' in target) {
-      const identifier = target.allIdentifiers
-      const regex =
-        typeof identifier === 'string' ? new RegExp(identifier) : identifier
-      const targets = this.map.filter(
-        (p) => p.identifier && regex.test(p.identifier)
-      )
+    // Handle "all" patterns - these require targets to exist in the map
+    if ('allIdentifiers' in target || 'allUrls' in target) {
+      const targets = this.findTargets(target)
 
       if (targets.length === 0) {
         this.log.warn?.(
-          `DirectIpcRenderer::send - No targets found for identifier pattern "${identifier}"`
+          `DirectIpcRenderer::send - No targets found for pattern`
         )
         return
       }
 
       this.log.silly?.(
-        `DirectIpcRenderer::send - Sending to ${targets.length} targets for pattern "${identifier}" with message "${message as string}"`
+        `DirectIpcRenderer::send - Sending to ${targets.length} target(s) with message "${message as string}"`
       )
 
       await Promise.all(
         targets.map(async (t) => {
-          const port = await this.getPort({ webContentsId: t.webContentsId })
-          if (port) {
-            port.postMessage({ message, args })
+          if (t.webContentsId !== undefined) {
+            const port = await this.getPort({ webContentsId: t.webContentsId })
+            if (port) {
+              port.postMessage({ message, args })
+            }
           }
         })
       )
       return
     }
 
-    if ('allUrls' in target) {
-      const url = target.allUrls
-      const regex = typeof url === 'string' ? new RegExp(url) : url
-      const targets = this.map.filter((p) => regex.test(p.url))
-
-      await Promise.all(
-        targets.map(async (t) => {
-          const port = await this.getPort({ webContentsId: t.webContentsId })
-          if (port) {
-            port.postMessage({ message, args })
-          }
-        })
-      )
-      return
-    }
-
-    // Handle single target patterns
+    // Handle single target - can work with targets not yet in map (getPort will wait)
     let selector: {
       webContentsId?: number
       identifier?: TIdentifierStrings | RegExp
       url?: string | RegExp
     }
-    let errorContext: string
 
     if ('webContentsId' in target) {
       selector = { webContentsId: target.webContentsId }
-      errorContext = `webContentsId ${target.webContentsId}`
     } else if ('identifier' in target) {
       selector = { identifier: target.identifier }
-      errorContext = `identifier "${target.identifier}"`
     } else if ('url' in target) {
       selector = { url: target.url }
-      errorContext = `url "${target.url}"`
     } else {
       throw new Error('DirectIpcRenderer::send - Invalid target selector')
     }
 
     const port = await this.getPort(selector)
-    if (!port) {
-      throw new Error(
-        `DirectIpcRenderer::send - No port found for ${errorContext}`
-      )
+    if (port) {
+      port.postMessage({ message, args })
     }
-    port.postMessage({ message, args })
-  }
-
-  /**
-   * Register a handler for invoke calls on a specific channel
-   */
-  handle<T extends keyof TInvokeMap>(
-    channel: T,
-    handler: WithSender<TInvokeMap>[T]
-  ): void {
-    this.log.silly?.(
-      'DirectIpcRenderer::handle - Registering handler for channel'
-    )
-    if (this.handlers.has(channel as string)) {
-      this.log.warn?.(
-        `DirectIpcRenderer::handle - Handler already exists for ${channel as string}, replacing`
-      )
-    }
-    this.handlers.set(channel as string, handler as InvokeHandler)
-  }
-
-  /**
-   * Remove a handler for a specific channel
-   */
-  removeHandler<T extends keyof TInvokeMap>(channel: T): void {
-    this.log.silly?.(
-      `DirectIpcRenderer::removeHandler - Removing handler for ${channel as string}`
-    )
-    this.handlers.delete(channel as string)
   }
 
   /**
@@ -784,10 +735,12 @@ export class DirectIpcRenderer<
     target: Omit<TargetSelector<TIdentifierStrings>, 'allIdentifiers' | 'allUrls'>,
     channel: T,
     ...args: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...params: TInvokeMap[T] extends (...args: infer P) => any ? P : never,
       options?: InvokeOptions,
     ]
   ): Promise<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     TInvokeMap[T] extends (...args: any[]) => infer R ? Awaited<R> : unknown
   > {
     // Build selector for getPort based on target type
@@ -810,14 +763,7 @@ export class DirectIpcRenderer<
     const port = await this.getPort(selector)
 
     // Extract options from the last argument if it's an InvokeOptions object
-    const lastArg = args[args.length - 1]
-    const isOptionsObject =
-      lastArg &&
-      typeof lastArg === 'object' &&
-      !Array.isArray(lastArg) &&
-      'timeout' in lastArg
-    const options = isOptionsObject ? (lastArg as InvokeOptions) : undefined
-    const invokeArgs = isOptionsObject ? args.slice(0, -1) : args
+    const { options, invokeArgs } = this.extractInvokeOptions(args)
     return this.invokeOnPort(port, channel as string, options, ...invokeArgs)
   }
 
@@ -830,36 +776,23 @@ export class DirectIpcRenderer<
     options?: InvokeOptions,
     ...args: unknown[]
   ): Promise<T> {
-    const requestId = `${++this.requestIdCounter}-${Date.now()}`
+    const requestId = this.createInvokeRequestId()
     const timeoutMs = options?.timeout ?? this.defaultTimeout
 
     this.log.silly?.('DirectIpcRenderer::invoke - invoking channel')
 
-    return new Promise<T>((resolve, reject) => {
-      // Set up timeout
-      const timeoutHandle = setTimeout(() => {
-        this.pendingInvokes.delete(requestId)
-        reject(
-          new Error(`DirectIpc invoke timeout after ${timeoutMs}ms: ${channel}`)
-        )
-      }, timeoutMs)
+    const promise = this.createInvokePromise<T>(requestId, timeoutMs, channel)
 
-      // Store pending request
-      this.pendingInvokes.set(requestId, {
-        resolve: resolve as (value: unknown) => void,
-        reject,
-        timeout: timeoutHandle,
-      })
+    // Send invoke message
+    const message: InvokeMessage = {
+      type: 'invoke',
+      channel,
+      requestId,
+      args,
+    }
+    port.postMessage(message)
 
-      // Send invoke message
-      const message: InvokeMessage = {
-        type: 'invoke',
-        channel,
-        requestId,
-        args,
-      }
-      port.postMessage(message)
-    })
+    return promise
   }
 
   /**
@@ -917,91 +850,11 @@ export class DirectIpcRenderer<
   }
 
   /**
-   * Handle an incoming invoke response
-   */
-  private handleInvokeResponse(response: InvokeResponse): void {
-    const { requestId, success, data, error } = response
-
-    this.log.silly?.(
-      'DirectIpcRenderer::handleInvokeResponse - handling response'
-    )
-
-    const pending = this.pendingInvokes.get(requestId)
-    if (!pending) {
-      this.log.warn?.(
-        'DirectIpcRenderer::handleInvokeResponse - No pending request'
-      )
-      return
-    }
-
-    // Clean up
-    clearTimeout(pending.timeout)
-    this.pendingInvokes.delete(requestId)
-
-    // Resolve or reject
-    if (success) {
-      pending.resolve(data)
-    } else {
-      pending.reject(new Error(error ?? 'Unknown error in invoke response'))
-    }
-  }
-
-  /**
    * Manually refresh the map from main process
    */
   async refreshMap(): Promise<DirectIpcTarget[]> {
     const map = await this.d.ipcRenderer.invoke(DIRECT_IPC_CHANNELS.REFRESH_MAP)
     this.handleMapUpdate(map)
     return map
-  }
-
-  /**
-   * Set the default timeout for invoke calls
-   */
-  setDefaultTimeout(ms: number): void {
-    this.defaultTimeout = ms
-  }
-
-  /**
-   * Get the current default timeout
-   */
-  getDefaultTimeout(): number {
-    return this.defaultTimeout
-  }
-
-  /**
-   * Get the current array of all registered target processes
-   */
-  getMap(): DirectIpcTarget[] {
-    return [...this.map]
-  }
-
-  /**
-   * Get this renderer's identifier
-   * @returns The identifier string or undefined if not set
-   */
-  getMyIdentifier(): TIdentifierStrings | undefined {
-    return this.myIdentifier
-  }
-
-  /**
-   * Clean up all pending invokes (useful for testing or shutdown)
-   */
-  clearPendingInvokes(): void {
-    for (const [, pending] of this.pendingInvokes.entries()) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('DirectIpc cleared all pending invokes'))
-    }
-    this.pendingInvokes.clear()
-  }
-
-  /**
-   * Close all cached ports (useful for shutdown)
-   */
-  closeAllPorts(): void {
-    for (const cached of this.portCache.values()) {
-      cached.port.close()
-    }
-    this.portCache.clear()
   }
 }

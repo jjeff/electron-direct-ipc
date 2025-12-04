@@ -13,6 +13,7 @@ const otherWindowId = windowId === '1' ? '2' : '1';
 /** ---- API for contextBridge ---- */
 
 contextBridge.exposeInMainWorld('directIpc', {
+  getMap: () => directIpc.getMap(),
   sendMessage: (msg: string) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-message', msg),
   sendObject: (obj: object) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-object', obj),
   sendNumber: (num: number) => directIpc.send({ identifier: `window:${otherWindowId}` }, 'send-number', num),
@@ -21,6 +22,18 @@ contextBridge.exposeInMainWorld('directIpc', {
   invokeEcho: (msg: string): Promise<string> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-echo', msg),
   invokeSum: (a: number, b: number): Promise<number> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-sum', a, b),
   invokeSumArray: (arr: number[]): Promise<number> => directIpc.invoke({ identifier: `window:${otherWindowId}` }, 'invoke-sum-array', arr),
+
+  // Utility process methods
+  util: {
+    sendCompute: (num: number) => directIpc.send({ identifier: 'compute-worker' }, 'compute-request', num),
+    sendPing: () => directIpc.send({ identifier: 'compute-worker' }, 'ping'),
+    invokeComputation: (numbers: number[]): Promise<number> => directIpc.invoke({ identifier: 'compute-worker' }, 'heavy-computation', numbers),
+    invokeStats: (): Promise<{ uptime: number; processed: number }> => directIpc.invoke({ identifier: 'compute-worker' }, 'get-stats'),
+    invokeSlowOperation: (delay: number, timeout?: number): Promise<string> =>
+      timeout
+        ? directIpc.invoke({ identifier: 'compute-worker' }, 'slow-operation', delay, { timeout })
+        : directIpc.invoke({ identifier: 'compute-worker' }, 'slow-operation', delay),
+  },
 
   // Throttled methods
   throttled: {
@@ -104,6 +117,15 @@ function handleDomLoaded() {
   directIpc.throttled.handle('throttled-invoke-counter', (sender, count) => {
     logMessage(`[Throttled Invoke] throttled-invoke-counter from ${sender.identifier}: ${count} -> returning ${count}`);
     return count;
+  });
+
+  // Utility process message listeners
+  directIpc.on('status-update', (sender, status, timestamp) => {
+    logMessage(`[Utility] status-update from ${sender.identifier}: ${status} at ${new Date(timestamp).toLocaleTimeString()}`);
+  });
+
+  directIpc.on('compute-request', (sender, result) => {
+    logMessage(`[Utility] compute-result from ${sender.identifier}: ${result}`);
   });
 }
 
