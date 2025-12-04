@@ -1,3 +1,7 @@
+## <small>1.0.3 (2025-12-04)</small>
+
+* fix: documentation build and deploy ([654de66](https://github.com/jjeff/electron-direct-ipc/commit/654de66))
+
 ## <small>1.0.2 (2025-12-04)</small>
 
 * Merge pull request #4 from jjeff/fix/npm-OIDC ([23c6f55](https://github.com/jjeff/electron-direct-ipc/commit/23c6f55)), closes [#4](https://github.com/jjeff/electron-direct-ipc/issues/4)
