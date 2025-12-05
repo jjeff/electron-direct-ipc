@@ -1,5 +1,5 @@
 {
-  "entryPoints": ["src/main", "src/renderer", "src/common"],
+  "entryPoints": ["src/**/*.ts"],
   "entryPointStrategy": "expand",
   "out": "docs/api",
   "excludePrivate": true,
