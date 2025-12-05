@@ -3,15 +3,31 @@
  */
 
 /**
- * Represents a registered renderer in the DirectIpc system
+ * Process type discriminator for DirectIpc targets
+ */
+export enum ProcessType {
+  /** Electron renderer process (BrowserWindow) */
+  RENDERER = 'renderer',
+  /** Electron utility process (background Node.js worker) */
+  UTILITY = 'utility',
+}
+
+/**
+ * Represents a registered process in the DirectIpc system
  */
 export type DirectIpcTarget = {
-  /** Target webContents id */
-  webContentsId: number
-  /** Full URL of the webContents */
-  url: string
+  /** Unique ID assigned by DirectIpcMain for this process */
+  id: number
+  /** Target webContents id (only for RENDERER type) */
+  webContentsId?: number
+  /** Full URL of the webContents (only for RENDERER type) */
+  url?: string
   /** Optional user-defined identifier string */
   identifier?: string
+  /** Process type discriminator */
+  processType: ProcessType
+  /** Process ID for diagnostic purposes (optional) */
+  pid?: number
 }
 
 /**
@@ -51,4 +67,26 @@ export const DIRECT_IPC_CHANNELS = {
   MAP_UPDATE: `${DIRECT_IPC_CHANNEL}:map-update`,
   /** Main sends MessagePort to renderer */
   PORT_MESSAGE: `${DIRECT_IPC_CHANNEL}:port`,
+  /** Utility process registers with main */
+  UTILITY_REGISTER: `${DIRECT_IPC_CHANNEL}:utility-register`,
+  /** Utility process signals ready state */
+  UTILITY_READY: `${DIRECT_IPC_CHANNEL}:utility-ready`,
 } as const
+
+/**
+ * Type guard: Check if target is a renderer process
+ */
+export function isRenderer(
+  target: DirectIpcTarget,
+): target is DirectIpcTarget & { webContentsId: number; url: string } {
+  return target.processType === ProcessType.RENDERER
+}
+
+/**
+ * Type guard: Check if target is a utility process
+ */
+export function isUtilityProcess(
+  target: DirectIpcTarget,
+): target is DirectIpcTarget & { pid: number } {
+  return target.processType === ProcessType.UTILITY
+}

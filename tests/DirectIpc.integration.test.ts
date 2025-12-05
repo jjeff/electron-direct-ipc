@@ -102,9 +102,11 @@ describe('DirectIpc Renderer Integration Tests', () => {
       async () => {
         return [
           {
+            id: 2,
             webContentsId: webContentsId2,
             url: 'output-url',
             identifier: 'output',
+            processType: 'renderer',
           },
         ]
       }
@@ -115,9 +117,11 @@ describe('DirectIpc Renderer Integration Tests', () => {
       async () => {
         return [
           {
+            id: 1,
             webContentsId: webContentsId1,
             url: 'controller-url',
             identifier: 'controller',
+            processType: 'renderer',
           },
         ]
       }
@@ -158,6 +162,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
             DIRECT_IPC_CHANNELS.PORT_MESSAGE,
             {
               sender: {
+                id: requestingId,
                 webContentsId: requestingId,
                 url:
                   requestingId === webContentsId1
@@ -165,6 +170,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
                     : 'output-url',
                 identifier:
                   requestingId === webContentsId1 ? 'controller' : 'output',
+                processType: 'renderer',
               },
             },
             [channel.port2]
@@ -184,9 +190,11 @@ describe('DirectIpc Renderer Integration Tests', () => {
           mockIpcRenderer2,
           webContentsId2,
           {
+            id: 2,
             webContentsId: webContentsId2,
             url: 'output-url',
             identifier: 'output',
+            processType: 'renderer',
           }
         )
       }
@@ -201,9 +209,11 @@ describe('DirectIpc Renderer Integration Tests', () => {
           mockIpcRenderer1,
           webContentsId1,
           {
+            id: 1,
             webContentsId: webContentsId1,
             url: 'controller-url',
             identifier: 'controller',
+            processType: 'renderer',
           }
         )
       }

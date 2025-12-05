@@ -1,0 +1,97 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Test App (Main Process)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/test-app",
+      "runtimeExecutable": "${workspaceFolder}/test-app/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/test-app/node_modules/.bin/electron.cmd"
+      },
+      "args": ["dist/main.js"],
+      "outputCapture": "std",
+      "console": "integratedTerminal",
+      "preLaunchTask": "Build All",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/test-app/dist/**/*.js",
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "skipFiles": [
+        "<node_internals>/**",
+        "**/node_modules/**"
+      ]
+    },
+    {
+      "name": "Debug Test App (Renderer Process)",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/test-app",
+      "timeout": 30000,
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./~/*": "${workspaceFolder}/test-app/node_modules/*",
+        "webpack:///./*": "${workspaceFolder}/test-app/*",
+        "webpack:///*": "*"
+      }
+    },
+    {
+      "name": "Debug Test App (Main + Enable Renderer Debugging)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/test-app",
+      "runtimeExecutable": "${workspaceFolder}/test-app/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/test-app/node_modules/.bin/electron.cmd"
+      },
+      "args": [
+        "dist/main.js",
+        "--remote-debugging-port=9222"
+      ],
+      "outputCapture": "std",
+      "console": "integratedTerminal",
+      "preLaunchTask": "Build All",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/test-app/dist/**/*.js",
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "skipFiles": [
+        "<node_internals>/**",
+        "**/node_modules/**"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Test App (Full Stack)",
+      "configurations": [
+        "Debug Test App (Main + Enable Renderer Debugging)",
+        "Debug Test App (Renderer Process)"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "Electron",
+        "order": 1
+      },
+      "stopAll": true
+    }
+  ]
+}

@@ -289,9 +289,11 @@ describe('DirectIpcRenderer', () => {
         { ports: [mockPort] },
         {
           sender: {
+            id: 2,
             webContentsId: 2,
             url: 'https://target.com',
             identifier: 'target',
+            processType: 'renderer',
           },
         }
       )
@@ -302,9 +304,11 @@ describe('DirectIpcRenderer', () => {
         {
           map: [
             {
+              id: 2,
               webContentsId: 2,
               url: 'https://target.com',
               identifier: 'target',
+              processType: 'renderer',
             },
           ],
         }
@@ -338,9 +342,11 @@ describe('DirectIpcRenderer', () => {
         { ports: [mockPort] },
         {
           sender: {
+            id: 5,
             webContentsId: 5,
             url: 'https://target.com',
             identifier: 'my-target',
+            processType: 'renderer',
           },
         }
       )
@@ -374,9 +380,11 @@ describe('DirectIpcRenderer', () => {
         { ports: [mockPort] },
         {
           sender: {
+            id: 6,
             webContentsId: 6,
             url: 'https://target.com/path',
             identifier: 'some-id',
+            processType: 'renderer',
           },
         }
       )
@@ -608,9 +616,11 @@ describe('DirectIpcRenderer', () => {
     it('should use cached port when requesting by identifier after initial connection', async () => {
       // Set up the map with a target that has an identifier
       const targetInfo = {
+        id: 2,
         webContentsId: 2,
         url: 'https://target.com',
         identifier: 'my-target',
+        processType: 'renderer' as const,
       }
 
       // Simulate receiving the map update
@@ -620,7 +630,8 @@ describe('DirectIpcRenderer', () => {
       const mockPort = createMockMessagePort()
 
       // Add the port to the cache (simulating a previous connection)
-      ;(directIpc as any).portCache.set(2, {
+      // Cache is keyed by process id, not webContentsId
+      ;(directIpc as any).portCache.set(targetInfo.id, {
         port: mockPort,
         info: targetInfo,
       })
@@ -642,9 +653,11 @@ describe('DirectIpcRenderer', () => {
     it('should use cached port when requesting by URL pattern after initial connection', async () => {
       // Set up the map with a target
       const targetInfo = {
+        id: 3,
         webContentsId: 3,
         url: 'https://controller.com/page',
         identifier: 'controller',
+        processType: 'renderer' as const,
       }
 
       // Simulate receiving the map update
@@ -654,7 +667,8 @@ describe('DirectIpcRenderer', () => {
       const mockPort = createMockMessagePort()
 
       // Add the port to the cache
-      ;(directIpc as any).portCache.set(3, {
+      // Cache is keyed by process id, not webContentsId
+      ;(directIpc as any).portCache.set(targetInfo.id, {
         port: mockPort,
         info: targetInfo,
       })

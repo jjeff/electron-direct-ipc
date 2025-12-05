@@ -3,11 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <title>Electron Test App</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
+      button { margin: 5px; padding: 8px 12px; cursor: pointer; }
+      #messages { border: 1px solid #ccc; padding: 10px; margin: 10px 0; max-height: 400px; overflow-y: auto; background: #f9f9f9; }
+      #messages p { margin: 4px 0; font-size: 14px; }
+      .section { margin: 15px 0; padding: 10px; border: 1px solid #eee; background: white; }
+      .section h3 { margin-top: 0; color: #333; }
+    </style>
   </head>
   <body>
     <div id="root">Loading…</div>
     <h2 id="page-head"></h2>
+
+    <div class="section">
+      <h3>Utility Process Communication</h3>
+      <button id="util-send-compute">Send Compute (5²)</button>
+      <button id="util-send-ping">Send Ping</button>
+      <button id="util-invoke-computation">Invoke Computation</button>
+      <button id="util-invoke-stats">Get Stats</button>
+    </div>
+
     <div id="messages"></div>
     <button id="clear-messages">Clear Messages</button>
+
+    <script src="renderer.js"></script>
   </body>
 </html>

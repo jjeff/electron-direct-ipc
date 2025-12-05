@@ -4,7 +4,7 @@
   "description": "Minimal Electron app for testing electron-direct-ipc.",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc && cp src/index.html dist/",
+    "build": "tsc && cp src/index.html dist/ && node -e \"const fs=require('fs'); let c=fs.readFileSync('dist/renderer.js','utf8'); c=c.replace(/^\\\"use strict\\\";\\nObject\\.defineProperty\\(exports, \\\"__esModule\\\", \\{ value: true \\}\\);\\n/,''); fs.writeFileSync('dist/renderer.js',c);\"",
     "start": "npm run build && electron dist/main.js",
     "dev": "tsc --watch"
   },

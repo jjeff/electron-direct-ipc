@@ -16,7 +16,7 @@ import {
   InvokeMap,
   EventMap,
 } from '../src/renderer/DirectIpcRenderer'
-import { DirectIpcTarget } from '../src/common/DirectIpcCommunication'
+import { DirectIpcTarget, ProcessType } from '../src/common/DirectIpcCommunication'
 
 // Define test message and invoke maps
 type TestMessageMap = {
@@ -79,9 +79,11 @@ function testDirectIpcEventMapEvents(directIpc: TestDirectIpc) {
 
   // ✓ Should emit with correct arguments
   const target: DirectIpcTarget = {
+    id: 1,
     webContentsId: 1,
     url: 'test',
     identifier: 'test',
+    processType: ProcessType.RENDERER,
   }
   directIpc.localEvents.emit('target-added', target)
   directIpc.localEvents.emit('target-removed', target)
@@ -131,9 +133,11 @@ function testMessageMapEvents(directIpc: TestDirectIpc) {
 
   // ✓ Should emit with sender as first argument
   const sender: DirectIpcTarget = {
+    id: 1,
     webContentsId: 1,
     url: 'test',
     identifier: 'test',
+    processType: ProcessType.RENDERER,
   }
   directIpc.emit('user-updated', sender, 'user-123', 'John Doe')
   directIpc.emit('data-received', sender, { count: 42 })

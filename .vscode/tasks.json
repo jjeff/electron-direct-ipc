@@ -1,0 +1,75 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Library",
+      "type": "npm",
+      "script": "build",
+      "path": "./",
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Build Test App",
+      "type": "npm",
+      "script": "build",
+      "path": "test-app/",
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Build All",
+      "dependsOn": ["Build Library", "Build Test App"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Watch Test App",
+      "type": "npm",
+      "script": "dev",
+      "path": "test-app/",
+      "isBackground": true,
+      "problemMatcher": {
+        "base": "$tsc-watch",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? - File change detected\\. Starting incremental compilation\\.\\.\\.",
+          "endsPattern": "^\\s*\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? - (Compilation complete\\.|Found \\d+ errors?\\.)"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Lint & Type Check",
+      "type": "shell",
+      "command": "npm run lint:fix && npm run type-check",
+      "problemMatcher": ["$eslint-stylish", "$tsc"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    }
+  ]
+}
