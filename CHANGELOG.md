@@ -1,3 +1,9 @@
+## [2.2.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.1.0...v2.2.0) (2025-12-05)
+
+### Features
+
+* add throttling methods to utility process ([c40e0f3](https://github.com/jjeff/electron-direct-ipc/commit/c40e0f3bb4bb10cc79443a547da3c7e09c62d630))
+
 ## [2.1.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.3...v2.1.0) (2025-12-05)
 
 ### Features
