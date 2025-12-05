@@ -477,4 +477,287 @@ describe('Utility Process Lifecycle Integration', () => {
       await expect(invokePromise).rejects.toThrow('invoke timeout')
     })
   })
+
+  describe('throttled messaging', () => {
+    it('should expose throttled property on utility instance', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      expect(utilityInstance.throttled).toBeDefined()
+      expect(utilityInstance.throttled.directIpc).toBe(utilityInstance)
+    })
+
+    it('should coalesce high-frequency throttled sends from utility', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      // Complete registration
+      await new Promise<void>((resolve) => {
+        utilityInstance.localEvents.once('registration-complete', () => resolve())
+
+        mockParentPort.emit('message', {
+          data: {
+            channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+            map: [
+              {
+                processType: ProcessType.RENDERER,
+                identifier: 'main-window',
+                webContentsId: 1,
+              },
+            ],
+          },
+        })
+      })
+
+      // Set up mock port
+      const mockPort = createMockMessagePort()
+      ;(utilityInstance as any).portCache.set('main-window', {
+        port: mockPort,
+        info: {
+          processType: ProcessType.RENDERER,
+          identifier: 'main-window',
+          webContentsId: 1,
+        },
+      })
+
+      // Send many messages rapidly via throttled
+      for (let i = 0; i < 100; i++) {
+        utilityInstance.throttled.send({ identifier: 'main-window' }, 'compute-result', i)
+      }
+
+      // Should not have sent yet (queued in microtask)
+      expect(mockPort.postMessage).not.toHaveBeenCalled()
+
+      // Wait for microtask to flush
+      await vi.waitFor(() => {
+        expect(mockPort.postMessage).toHaveBeenCalled()
+      })
+
+      // Should only send the last value (99)
+      expect(mockPort.postMessage).toHaveBeenCalledTimes(1)
+      expect(mockPort.postMessage).toHaveBeenCalledWith({
+        message: 'compute-result',
+        args: [99],
+      })
+    })
+
+    it('should coalesce high-frequency throttled receives in utility', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      const throttledListener = vi.fn()
+      utilityInstance.throttled.on('compute-request', throttledListener)
+
+      // Complete registration
+      await new Promise<void>((resolve) => {
+        utilityInstance.localEvents.once('registration-complete', () => resolve())
+
+        mockParentPort.emit('message', {
+          data: {
+            channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+            map: [],
+          },
+        })
+      })
+
+      const rendererInfo: DirectIpcTarget = {
+        processType: ProcessType.RENDERER,
+        identifier: 'main-window',
+        webContentsId: 1,
+      }
+
+      // Simulate many rapid incoming messages
+      for (let i = 0; i < 100; i++) {
+        ;(utilityInstance as any).handlePortMessage(
+          { message: 'compute-request', args: [i] },
+          rendererInfo
+        )
+      }
+
+      // Wait for microtask to flush
+      await vi.waitFor(() => {
+        expect(throttledListener).toHaveBeenCalled()
+      })
+
+      // Should only receive the last value (99)
+      expect(throttledListener).toHaveBeenCalledTimes(1)
+      expect(throttledListener).toHaveBeenCalledWith(
+        expect.objectContaining({ identifier: 'main-window' }),
+        99
+      )
+    })
+
+    it('should not coalesce non-throttled utility messages', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      const normalListener = vi.fn()
+      utilityInstance.on('compute-request', normalListener)
+
+      // Complete registration
+      await new Promise<void>((resolve) => {
+        utilityInstance.localEvents.once('registration-complete', () => resolve())
+
+        mockParentPort.emit('message', {
+          data: {
+            channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+            map: [],
+          },
+        })
+      })
+
+      const rendererInfo: DirectIpcTarget = {
+        processType: ProcessType.RENDERER,
+        identifier: 'main-window',
+        webContentsId: 1,
+      }
+
+      // Send 10 messages (non-throttled)
+      for (let i = 0; i < 10; i++) {
+        ;(utilityInstance as any).handlePortMessage(
+          { message: 'compute-request', args: [i] },
+          rendererInfo
+        )
+      }
+
+      // Should receive all 10 messages immediately
+      expect(normalListener).toHaveBeenCalledTimes(10)
+      for (let i = 0; i < 10; i++) {
+        expect(normalListener).toHaveBeenNthCalledWith(i + 1, expect.anything(), i)
+      }
+    })
+
+    it('should allow mixing throttled and non-throttled on same channel', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      const throttledListener = vi.fn()
+      const normalListener = vi.fn()
+
+      utilityInstance.throttled.on('compute-request', throttledListener)
+      utilityInstance.on('compute-request', normalListener)
+
+      // Complete registration
+      await new Promise<void>((resolve) => {
+        utilityInstance.localEvents.once('registration-complete', () => resolve())
+
+        mockParentPort.emit('message', {
+          data: {
+            channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+            map: [],
+          },
+        })
+      })
+
+      const rendererInfo: DirectIpcTarget = {
+        processType: ProcessType.RENDERER,
+        identifier: 'main-window',
+        webContentsId: 1,
+      }
+
+      // Send 5 messages
+      for (let i = 0; i < 5; i++) {
+        ;(utilityInstance as any).handlePortMessage(
+          { message: 'compute-request', args: [i] },
+          rendererInfo
+        )
+      }
+
+      // Normal listener gets all immediately
+      expect(normalListener).toHaveBeenCalledTimes(5)
+
+      // Wait for throttled microtask
+      await vi.waitFor(() => {
+        expect(throttledListener).toHaveBeenCalled()
+      })
+
+      // Throttled listener only gets last value
+      expect(throttledListener).toHaveBeenCalledTimes(1)
+      expect(throttledListener).toHaveBeenCalledWith(expect.anything(), 4)
+    })
+
+    it('should proxy invoke/handle through throttled', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      // Register handler via throttled (should work same as direct)
+      utilityInstance.throttled.handle('heavy-computation', async (sender, data: number[]) => {
+        return data.reduce((sum, n) => sum + n, 0)
+      })
+
+      // Complete registration
+      await new Promise<void>((resolve) => {
+        utilityInstance.localEvents.once('registration-complete', () => resolve())
+
+        mockParentPort.emit('message', {
+          data: {
+            channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+            map: [],
+          },
+        })
+      })
+
+      // Set up mock port
+      const mockPort = createMockMessagePort()
+      const rendererInfo: DirectIpcTarget = {
+        processType: ProcessType.RENDERER,
+        identifier: 'main-window',
+        webContentsId: 1,
+      }
+
+      ;(utilityInstance as any).portCache.set('main-window', {
+        port: mockPort,
+        info: rendererInfo,
+      })
+
+      // Simulate invoke request
+      ;(utilityInstance as any).handlePortMessage(
+        {
+          type: 'invoke',
+          channel: 'heavy-computation',
+          requestId: 'throttled-test-1',
+          args: [[1, 2, 3, 4, 5]],
+        },
+        rendererInfo
+      )
+
+      // Wait for async handler
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Verify response
+      expect(mockPort.postMessage).toHaveBeenCalledWith({
+        type: 'invoke-response',
+        requestId: 'throttled-test-1',
+        success: true,
+        data: 15,
+      })
+    })
+
+    it('should expose localEvents through throttled', async () => {
+      utilityInstance = DirectIpcUtility.instance<TestMessageMap, TestInvokeMap, TestIdentifiers>({
+        identifier: 'compute-worker',
+      })
+
+      const registrationHandler = vi.fn()
+      utilityInstance.throttled.localEvents.on('registration-complete', registrationHandler)
+
+      // Complete registration
+      mockParentPort.emit('message', {
+        data: {
+          channel: DIRECT_IPC_CHANNELS.MAP_UPDATE,
+          map: [],
+        },
+      })
+
+      await vi.waitFor(() => {
+        expect(registrationHandler).toHaveBeenCalled()
+      })
+    })
+  })
 })

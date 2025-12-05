@@ -9,6 +9,9 @@ export type TestDirectIpcMap = {
   'compute-request': (data: number) => void
   'ping': () => void
   'status-update': (status: string, timestamp: number) => void
+  // Utility process throttled messages
+  'throttled-position': (x: number, y: number) => void
+  'throttled-progress': (percent: number) => void
 }
 
 export type TestDirectIpcInvokeMap = {
@@ -20,6 +23,12 @@ export type TestDirectIpcInvokeMap = {
   'heavy-computation': (numbers: number[]) => Promise<number>
   'get-stats': () => Promise<{ uptime: number; processed: number }>
   'slow-operation': (delay: number) => Promise<string>
+  // Utility process throttled testing invokes
+  'get-throttled-stats': () => Promise<{ lastPosition: { x: number; y: number }; receiveCount: number }>
+  'reset-throttled-stats': () => Promise<boolean>
+  'send-throttled-progress': (count: number) => Promise<number>
+  // E2E testing - trigger broadcast on demand
+  'broadcast-status': () => Promise<boolean>
 }
 
 export type WindowName = `window:${string}` | 'compute-worker';

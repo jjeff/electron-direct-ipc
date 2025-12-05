@@ -2,8 +2,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/electron-direct-ipc.svg)](https://www.npmjs.com/package/electron-direct-ipc)
 [![CI](https://github.com/jjeff/electron-direct-ipc/actions/workflows/ci.yml/badge.svg)](https://github.com/jjeff/electron-direct-ipc/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
-[![Package Format](https://img.shields.io/badge/package-ESM%20%7C%20CJS-orange.svg)](https://nodejs.org/api/packages.html)
+[![Package Format](https://img.shields.io/badge/package-ESM%20%7C%20CJS-orange.svg)](https://github.com/jjeff/electron-direct-ipc)
 [![API Docs](https://img.shields.io/badge/API%20Docs-TypeDoc-informational.svg)](https://jjeff.github.io/electron-direct-ipc/)
 [![npm provenance](https://img.shields.io/badge/provenance-OIDC-success.svg)](https://docs.npmjs.com/generating-provenance-statements)
 
@@ -22,6 +21,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 - 🔄 **Bidirectional** - Request/response with async invoke/handle pattern
 - 📡 **Event-Driven** - Built on EventEmitter with automatic lifecycle management
 - 📦 **Dual Format** - Works with both ESM (`import`) and CommonJS (`require`)
+- 🔧 **Utility Process Support** - Full communication with Electron UtilityProcess workers
 - 🧪 **Well Tested** - Comprehensive unit, integration, and E2E tests with full coverage
 
 ## Table of Contents
@@ -33,6 +33,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
   - [DirectIpcRenderer](#directipcrenderer)
   - [DirectIpcThrottled](#directipcthrottled)
   - [DirectIpcMain](#directipcmain)
+  - [DirectIpcUtility](#directipcutility)
 - [Usage Patterns](#usage-patterns)
 - [Performance Guide](#performance-guide)
 - [Testing](#testing)
@@ -450,6 +451,141 @@ const directIpcMain = new DirectIpcMain({
 
 **No manual coordination needed!** DirectIpcMain handles everything automatically.
 
+### DirectIpcUtility
+
+For communication with Electron [UtilityProcess](https://www.electronjs.org/docs/latest/api/utility-process) workers. Use utility processes for CPU-intensive tasks that would block the renderer.
+
+#### Setup
+
+**1. Create a utility process worker:**
+
+```typescript
+// utility-worker.ts
+import { DirectIpcUtility } from 'electron-direct-ipc/utility'
+
+// Define message types (same pattern as renderer)
+type WorkerMessages = {
+  'compute-result': (result: number) => void
+  progress: (percent: number) => void
+}
+
+type WorkerInvokes = {
+  'heavy-computation': (numbers: number[]) => Promise<number>
+  'get-stats': () => Promise<{ uptime: number; processed: number }>
+}
+
+// Create instance with identifier
+const utility = DirectIpcUtility.instance<WorkerMessages, WorkerInvokes>({
+  identifier: 'compute-worker',
+})
+
+// Listen for messages from renderers
+utility.on('compute-request', async (sender, data) => {
+  const result = performHeavyWork(data)
+  await utility.send({ identifier: sender.identifier! }, 'compute-result', result)
+})
+
+// Handle invoke requests (RPC style)
+utility.handle('heavy-computation', async (sender, numbers) => {
+  return numbers.reduce((a, b) => a + b, 0)
+})
+
+// Send high-frequency updates with throttling
+utility.throttled.send({ identifier: 'main-window' }, 'progress', 50)
+```
+
+**2. Spawn and register from main process:**
+
+```typescript
+// main.ts
+import { utilityProcess } from 'electron'
+import { DirectIpcMain } from 'electron-direct-ipc/main'
+
+const directIpcMain = DirectIpcMain.init()
+
+// Spawn the utility process
+const worker = utilityProcess.fork('utility-worker.js')
+
+// Register with DirectIpcMain
+directIpcMain.registerUtilityProcess('compute-worker', worker)
+
+// Handle worker exit
+worker.on('exit', (code) => {
+  console.log(`Worker exited with code ${code}`)
+})
+```
+
+**3. Communicate from renderer:**
+
+```typescript
+// renderer.ts
+import { DirectIpcRenderer } from 'electron-direct-ipc/renderer'
+
+const directIpc = DirectIpcRenderer.instance({ identifier: 'main-window' })
+
+// Send message to utility process
+await directIpc.send({ identifier: 'compute-worker' }, 'compute-request', 42)
+
+// Invoke utility process handler
+const result = await directIpc.invoke(
+  { identifier: 'compute-worker' },
+  'heavy-computation',
+  [1, 2, 3, 4, 5]
+)
+
+// Listen for results from utility process
+directIpc.on('compute-result', (sender, result) => {
+  console.log(`Result from ${sender.identifier}: ${result}`)
+})
+```
+
+#### DirectIpcUtility API
+
+```typescript
+// Singleton pattern (same as DirectIpcRenderer)
+const utility = DirectIpcUtility.instance<TMessages, TInvokes, TIdentifiers>({
+  identifier: 'my-worker',
+  log: customLogger,
+  defaultTimeout: 30000,
+  registrationTimeout: 5000,
+})
+
+// Send messages (same API as DirectIpcRenderer)
+await utility.send({ identifier: 'renderer' }, 'message-name', ...args)
+await utility.send({ webContentsId: 5 }, 'message-name', ...args)
+await utility.send({ allIdentifiers: /^renderer-/ }, 'broadcast', data)
+
+// Receive messages
+utility.on('channel', (sender, ...args) => {})
+utility.off('channel', listener)
+
+// Invoke/Handle pattern
+utility.handle('channel', async (sender, ...args) => result)
+const result = await utility.invoke({ identifier: 'target' }, 'channel', ...args)
+
+// Throttled messaging (same API as DirectIpcRenderer)
+utility.throttled.send({ identifier: 'renderer' }, 'position', x, y)
+utility.throttled.on('position', (sender, x, y) => {})
+
+// Registration lifecycle
+utility.getRegistrationState() // 'uninitialized' | 'subscribing' | 'registered' | 'failed'
+utility.localEvents.on('registration-complete', () => {})
+utility.localEvents.on('registration-failed', (error) => {})
+```
+
+#### Registration States
+
+DirectIpcUtility goes through a registration lifecycle when starting:
+
+| State           | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `uninitialized` | Instance created, registration not started               |
+| `subscribing`   | Registration sent, waiting for main process confirmation |
+| `registered`    | Ready for communication                                  |
+| `failed`        | Registration timed out or failed                         |
+
+Messages sent before registration completes are automatically queued and flushed once registered.
+
 ## Usage Patterns
 
 ### Pattern 1: Simple Messaging
@@ -572,6 +708,45 @@ directIpc.localEvents.on('target-removed', (target) => {
 })
 ```
 
+### Pattern 8: Utility Process Communication
+
+```typescript
+// Main process - spawn and register utility worker
+import { utilityProcess } from 'electron'
+import { DirectIpcMain } from 'electron-direct-ipc/main'
+
+const directIpcMain = DirectIpcMain.init()
+const worker = utilityProcess.fork('heavy-worker.js')
+directIpcMain.registerUtilityProcess('heavy-worker', worker)
+
+// Utility process - handle CPU-intensive work
+import { DirectIpcUtility } from 'electron-direct-ipc/utility'
+
+const utility = DirectIpcUtility.instance({ identifier: 'heavy-worker' })
+
+utility.handle('process-data', async (sender, data) => {
+  // Heavy computation runs in isolated process
+  const result = expensiveOperation(data)
+  return result
+})
+
+// Send progress updates back to renderer
+utility.throttled.send({ identifier: 'main-window' }, 'progress', 75)
+
+// Renderer - offload work to utility process
+const result = await directIpc.invoke(
+  { identifier: 'heavy-worker' },
+  'process-data',
+  largeDataset,
+  { timeout: 30000 }
+)
+
+// Listen for progress from utility process
+directIpc.throttled.on('progress', (sender, percent) => {
+  updateProgressBar(percent)
+})
+```
+
 ## Performance Guide
 
 ### Choosing Throttled vs Non-Throttled
@@ -604,6 +779,7 @@ directIpc.localEvents.on('target-removed', (target) => {
 DirectIPC is designed to be lightweight:
 
 - DirectIpcRenderer: ~8KB per instance
+- DirectIpcUtility: ~8KB per instance
 - DirectIpcThrottled: ~2KB per instance (auto-created)
 - MessageChannel: ~1KB per connection
 - Pending messages: O(channels × targets)
@@ -690,7 +866,7 @@ test('renderer communication', async () => {
 ```mermaid
 graph TB
     subgraph Main["Main Process"]
-        DIM[DirectIpcMain<br/>• Tracks all renderer windows<br/>• Creates MessageChannels on demand<br/>• Broadcasts map updates]
+        DIM[DirectIpcMain<br/>• Tracks all renderer windows<br/>• Tracks utility processes<br/>• Creates MessageChannels on demand<br/>• Broadcasts map updates]
     end
 
     subgraph RendererA["Renderer A (e.g., Controller)"]
@@ -705,9 +881,18 @@ graph TB
         DIRB --- THROT_B
     end
 
+    subgraph UtilityProc["Utility Process (e.g., Worker)"]
+        DIRU[DirectIpcUtility<br/>• Message sending<br/>• Event receiving<br/>• Invoke/handle]
+        THROT_U[.throttled<br/>• Coalescing]
+        DIRU --- THROT_U
+    end
+
     DIM -.IPC Setup.-> DIRA
     DIM -.IPC Setup.-> DIRB
+    DIM -.IPC Setup.-> DIRU
     DIRA <==MessageChannel<br/>Direct Connection==> DIRB
+    DIRA <==MessageChannel<br/>Direct Connection==> DIRU
+    DIRB <==MessageChannel<br/>Direct Connection==> DIRU
 ```
 
 ### Message Flow
@@ -779,10 +964,17 @@ sequenceDiagram
 
 **Why singleton pattern?**
 
-- One DirectIpcRenderer per renderer process
+- One DirectIpcRenderer/DirectIpcUtility per process
 - Prevents duplicate port connections
 - Centralized lifecycle management
 - Easier debugging
+
+**Why utility process support?**
+
+- Offload CPU-intensive work from renderers
+- Keep UI responsive during heavy computation
+- Same familiar API as DirectIpcRenderer
+- Automatic registration and lifecycle management
 
 ## Migration Guide
 

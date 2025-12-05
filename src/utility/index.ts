@@ -11,6 +11,8 @@ export type {
   QueuedMessage,
 } from './DirectIpcUtility.js'
 
+export { DirectIpcUtilityThrottled } from './DirectIpcUtilityThrottled.js'
+
 export type {
   EventMap,
   InvokeMap,

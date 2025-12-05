@@ -10,6 +10,10 @@ const directIpc = DirectIpcRenderer.instance<TestDirectIpcMap, TestDirectIpcInvo
 // if windowId is 1, use 2, and vice versa
 const otherWindowId = windowId === '1' ? '2' : '1';
 
+// Track received throttled progress messages for E2E testing
+// This array is kept in preload context and exposed via contextBridge
+const throttledProgressReceived: number[] = [];
+
 /** ---- API for contextBridge ---- */
 
 contextBridge.exposeInMainWorld('directIpc', {
@@ -33,12 +37,27 @@ contextBridge.exposeInMainWorld('directIpc', {
       timeout
         ? directIpc.invoke({ identifier: 'compute-worker' }, 'slow-operation', delay, { timeout })
         : directIpc.invoke({ identifier: 'compute-worker' }, 'slow-operation', delay),
+    // Throttled utility methods
+    sendThrottledPosition: (x: number, y: number) => directIpc.throttled.send({ identifier: 'compute-worker' }, 'throttled-position', x, y),
+    invokeThrottledStats: (): Promise<{ lastPosition: { x: number; y: number }; receiveCount: number }> =>
+      directIpc.invoke({ identifier: 'compute-worker' }, 'get-throttled-stats'),
+    resetThrottledStats: (): Promise<boolean> => directIpc.invoke({ identifier: 'compute-worker' }, 'reset-throttled-stats'),
+    requestThrottledProgress: (count: number): Promise<number> => directIpc.invoke({ identifier: 'compute-worker' }, 'send-throttled-progress', count),
+    // E2E testing - trigger status broadcast on demand (avoids 5s wait for periodic update)
+    broadcastStatus: (): Promise<boolean> => directIpc.invoke({ identifier: 'compute-worker' }, 'broadcast-status'),
   },
 
   // Throttled methods
   throttled: {
     sendCounter: (count: number) => directIpc.throttled.send({ identifier: `window:${otherWindowId}` }, 'throttled-counter', count),
     invokeCounter: (count: number): Promise<number> => directIpc.throttled.invoke({ identifier: `window:${otherWindowId}` }, 'throttled-invoke-counter', count),
+  },
+
+  // E2E testing helpers for throttled progress tracking
+  // These expose the preload-side array to the page context
+  testing: {
+    getThrottledProgressReceived: (): number[] => throttledProgressReceived,
+    resetThrottledProgressReceived: () => { throttledProgressReceived.length = 0; },
   }
 });
 
@@ -126,6 +145,14 @@ function handleDomLoaded() {
 
   directIpc.on('compute-request', (sender, result) => {
     logMessage(`[Utility] compute-result from ${sender.identifier}: ${result}`);
+  });
+
+  // Throttled progress listener (from utility process)
+  // Uses the module-scoped throttledProgressReceived array exposed via contextBridge
+  directIpc.throttled.on('throttled-progress', (sender, percent) => {
+    throttledProgressReceived.push(percent);
+    console.log(`[Preload] Pushed ${percent} to throttledProgressReceived, now has ${throttledProgressReceived.length} items`);
+    logMessage(`[Utility Throttled] throttled-progress from ${sender.identifier}: ${percent}%`);
   });
 }
 
