@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.1...v2.0.2) (2025-12-05)
+
+### Bug Fixes
+
+* 📄 better typedoc coverage ([2e0bcf1](https://github.com/jjeff/electron-direct-ipc/commit/2e0bcf19c3443868a0ae6f9b74ff4a15f175c8a4))
+* **docs:** build docs AFTER release commit ([c8df16f](https://github.com/jjeff/electron-direct-ipc/commit/c8df16f67191f2f78daca520575920b2e5a3495a))
+
 ## [2.0.1](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.0...v2.0.1) (2025-12-05)
 
 ### Bug Fixes
