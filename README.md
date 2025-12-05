@@ -788,10 +788,31 @@ DirectIPC is designed to be lightweight:
 
 On a modern laptop (M1 MacBook):
 
-- Send 1000 non-throttled messages: ~2ms
-- Send 1000 throttled messages: ~2ms (but only 1 delivered)
-- Invoke round-trip: ~1.5ms average
-- Connect new renderer: ~10ms
+| Metric | Result |
+|--------|--------|
+| Send 1000 non-throttled messages | ~8ms |
+| Send 1000 throttled messages | ~0.5ms (only 1 delivered) |
+| Invoke round-trip | ~0.05ms average |
+| Connect new renderer | ~25ms (includes MessageChannel setup) |
+| Throughput | ~23,000 invokes/sec |
+
+### DirectIPC vs Traditional IPC
+
+The real benefit of DirectIPC is **renderer-to-renderer communication**. Traditional Electron IPC requires routing through the main process:
+
+```
+Traditional: renderer1 → ipcMain → renderer2 (relay pattern)
+DirectIPC:   renderer1 → renderer2 (direct MessageChannel)
+```
+
+| Operation | Traditional IPC | DirectIPC | Speedup |
+|-----------|-----------------|-----------|---------|
+| Send 1000 msgs (r1 → r2) | ~50ms | ~4ms | **~14x faster** |
+| Invoke round-trip (r1 ↔ r2) | ~0.10ms | ~0.05ms | **~2x faster** |
+
+**Note:** For renderer → main communication only (no relay), traditional `ipcRenderer.invoke` is slightly faster (~0.05ms) since it doesn't involve MessageChannel overhead. DirectIPC shines when you need direct renderer-to-renderer or renderer-to-utility communication.
+
+Run `npm run test:e2e:benchmark` to validate these on your machine.
 
 ## Testing
 

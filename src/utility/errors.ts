@@ -51,9 +51,7 @@ export class RegistrationTimeoutError extends Error {
   public readonly timeoutMs: number
 
   constructor(identifier: string, timeoutMs: number) {
-    super(
-      `Utility process registration timed out after ${timeoutMs}ms: ${identifier}`,
-    )
+    super(`Utility process registration timed out after ${timeoutMs}ms: ${identifier}`)
     this.name = 'RegistrationTimeoutError'
     this.identifier = identifier
     this.timeoutMs = timeoutMs

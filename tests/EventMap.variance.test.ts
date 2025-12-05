@@ -25,7 +25,7 @@ describe('EventMap and InvokeMap Variance', () => {
   it('should allow InvokeMap to be satisfied by concrete invoke maps', () => {
     type ConcreteInvokeMap = {
       'get-user': (userId: string) => Promise<{ id: string; name: string }>
-      'calculate': (a: number, b: number) => Promise<number>
+      calculate: (a: number, b: number) => Promise<number>
       'get-data': () => { value: string }
     }
 
@@ -40,10 +40,7 @@ describe('EventMap and InvokeMap Variance', () => {
     }
 
     type WithSender<T extends EventMap> = {
-      [K in keyof T]: (
-        sender: DirectIpcTarget,
-        ...args: Parameters<T[K]>
-      ) => ReturnType<T[K]>
+      [K in keyof T]: (sender: DirectIpcTarget, ...args: Parameters<T[K]>) => ReturnType<T[K]>
     }
 
     // This should compile without errors - the key test case
@@ -100,12 +97,12 @@ describe('EventMap and InvokeMap Variance', () => {
 
   it('should allow transformed types with named parameters', () => {
     type BaseMap = {
-      'event': (data: string) => void
+      event: (data: string) => void
     }
 
     // Simulate DirectIpc's WithSender transformation
     type TransformedMap = {
-      'event': (sender: DirectIpcTarget, data: string) => void
+      event: (sender: DirectIpcTarget, data: string) => void
     }
 
     // The key issue: transformed types with named parameters must satisfy EventMap
@@ -143,7 +140,7 @@ describe('EventMap and InvokeMap Variance', () => {
     // If we used: interface EventMap { [key: string]: (...args: unknown[]) => unknown }
 
     type Transformed = {
-      'event': (sender: DirectIpcTarget, data: string) => void
+      event: (sender: DirectIpcTarget, data: string) => void
     }
 
     // With unknown[], this would fail because:

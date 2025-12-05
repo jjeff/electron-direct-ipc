@@ -174,7 +174,7 @@ describe('Message Queue', () => {
         { id: 2, identifier: 'target-2', webContentsId: 2, processType: 'renderer' as const },
         { id: 3, identifier: 'target-3', webContentsId: 3, processType: 'renderer' as const },
       ]
-      targets.forEach(target => {
+      targets.forEach((target) => {
         ;(utility as any).portCache.set(target.identifier, {
           port: createMockPort(),
           info: target,
@@ -279,9 +279,7 @@ describe('Message Queue', () => {
           expect(getQueue()).toHaveLength(0)
 
           // Spy on sendToTarget to verify immediate send
-          const sendSpy = vi
-            .spyOn(utility as any, 'sendToTarget')
-            .mockResolvedValue(undefined)
+          const sendSpy = vi.spyOn(utility as any, 'sendToTarget').mockResolvedValue(undefined)
 
           // Send a message after registration
           void utility.send({ identifier: 'target' }, 'test-message', 'arg')
@@ -318,15 +316,13 @@ describe('Message Queue', () => {
 
       // Mock sendToTarget to throw error on second message
       let callCount = 0
-      const sendSpy = vi
-        .spyOn(utility as any, 'sendToTarget')
-        .mockImplementation(() => {
-          callCount++
-          if (callCount === 2) {
-            return Promise.reject(new Error('Send failed'))
-          }
-          return Promise.resolve()
-        })
+      const sendSpy = vi.spyOn(utility as any, 'sendToTarget').mockImplementation(() => {
+        callCount++
+        if (callCount === 2) {
+          return Promise.reject(new Error('Send failed'))
+        }
+        return Promise.resolve()
+      })
 
       // Simulate registration complete
       const handleMapUpdate = (utility as any).handleMapUpdate.bind(utility)

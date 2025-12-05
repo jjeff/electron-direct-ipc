@@ -202,12 +202,10 @@ function testProxyMethods() {
   })
 
   // ✓ Should preserve invokeIdentifier() signature and return type
-  throttled
-    .invokeIdentifier('output', 'calculate', undefined, 5, 10)
-    .then((result) => {
-      const _result: number = result
-      void _result
-    })
+  throttled.invokeIdentifier('output', 'calculate', undefined, 5, 10).then((result) => {
+    const _result: number = result
+    void _result
+  })
 
   // ✓ Should preserve getMap() return type
   const map = throttled.getMap()

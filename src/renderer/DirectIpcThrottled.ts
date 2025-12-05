@@ -128,11 +128,7 @@ export class DirectIpcThrottled<
    * The underlying DirectIpcRenderer instance
    * Use this for non-throttled operations like invoke/handle
    */
-  public readonly directIpc: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >
+  public readonly directIpc: DirectIpcRenderer<TMessageMap, TInvokeMap, TIdentifierStrings>
 
   /**
    * Pending outgoing messages awaiting send (coalesced by target+channel)
@@ -180,26 +176,14 @@ export class DirectIpcThrottled<
   private log: DirectIpcLogger
 
   /** Proxy methods (bound in constructor) */
-  public readonly handle: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >['handle']
+  public readonly handle: DirectIpcRenderer<TMessageMap, TInvokeMap, TIdentifierStrings>['handle']
   public readonly removeHandler: DirectIpcRenderer<
     TMessageMap,
     TInvokeMap,
     TIdentifierStrings
   >['removeHandler']
-  public readonly invoke: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >['invoke']
-  public readonly getMap: DirectIpcRenderer<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >['getMap']
+  public readonly invoke: DirectIpcRenderer<TMessageMap, TInvokeMap, TIdentifierStrings>['invoke']
+  public readonly getMap: DirectIpcRenderer<TMessageMap, TInvokeMap, TIdentifierStrings>['getMap']
   public readonly getMyIdentifier: DirectIpcRenderer<
     TMessageMap,
     TInvokeMap,
@@ -242,13 +226,14 @@ export class DirectIpcThrottled<
     options: { log?: DirectIpcLogger } = {}
   ) {
     this.directIpc = directIpc
-    this.log = options.log ?? directIpc['log'] ?? {
-      silly: () => {},
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    }
+    this.log = options.log ??
+      directIpc['log'] ?? {
+        silly: () => {},
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
 
     // Bind proxy methods in constructor
     this.handle = directIpc.handle.bind(directIpc)
@@ -260,8 +245,7 @@ export class DirectIpcThrottled<
     this.refreshMap = directIpc.refreshMap.bind(directIpc)
     this.setDefaultTimeout = directIpc.setDefaultTimeout.bind(directIpc)
     this.getDefaultTimeout = directIpc.getDefaultTimeout.bind(directIpc)
-    this.resolveTargetToWebContentsId =
-      directIpc.resolveTargetToWebContentsId.bind(directIpc)
+    this.resolveTargetToWebContentsId = directIpc.resolveTargetToWebContentsId.bind(directIpc)
   }
 
   // ============================================================================
@@ -359,10 +343,7 @@ export class DirectIpcThrottled<
     this.sendMicrotaskScheduled = true
     queueMicrotask(() => {
       this.flushSends().catch((error) => {
-        this.log?.error?.(
-          'DirectIpcThrottled::flushSends - Error flushing sends:',
-          error
-        )
+        this.log?.error?.('DirectIpcThrottled::flushSends - Error flushing sends:', error)
       })
       this.sendMicrotaskScheduled = false
     })
@@ -395,10 +376,7 @@ export class DirectIpcThrottled<
               ? { allIdentifiers: target.identifier }
               : { identifier: target.identifier }
         } else if (target.url !== undefined) {
-          targetSelector =
-            targetType === 'multiple'
-              ? { allUrls: target.url }
-              : { url: target.url }
+          targetSelector = targetType === 'multiple' ? { allUrls: target.url } : { url: target.url }
         } else {
           return Promise.resolve()
         }
@@ -436,10 +414,7 @@ export class DirectIpcThrottled<
       this.listeners.set(event as keyof TMessageMap, new Set())
 
       // Register internal coalescing handler on directIpc (only once per channel)
-      this.directIpc.on(
-        event,
-        this.createCoalescingHandler(event as keyof TMessageMap) as never
-      )
+      this.directIpc.on(event, this.createCoalescingHandler(event as keyof TMessageMap) as never)
     }
 
     this.listeners.get(event as keyof TMessageMap)!.add(listener)
@@ -458,9 +433,7 @@ export class DirectIpcThrottled<
     event: E,
     listener: WithSender<TMessageMap>[E]
   ): this {
-    this.log?.silly?.(
-      `DirectIpcThrottled::off - Removing throttled listener for ${String(event)}`
-    )
+    this.log?.silly?.(`DirectIpcThrottled::off - Removing throttled listener for ${String(event)}`)
 
     const listeners = this.listeners.get(event as keyof TMessageMap)
     if (listeners) {

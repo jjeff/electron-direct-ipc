@@ -50,10 +50,7 @@ vi.mock('eventemitter', () => {
   }
 })
 
-import {
-  DirectIpcRenderer,
-  DirectIpcLogger,
-} from '../src/renderer/DirectIpcRenderer'
+import { DirectIpcRenderer, DirectIpcLogger } from '../src/renderer/DirectIpcRenderer'
 import { DIRECT_IPC_CHANNELS } from '../src/common/DirectIpcCommunication'
 
 // Helper to create mock MessagePort with all required methods
@@ -136,10 +133,7 @@ describe('DirectIpcRenderer', () => {
     })
 
     it('should auto-subscribe on construction', () => {
-      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
-        DIRECT_IPC_CHANNELS.SUBSCRIBE,
-        undefined
-      )
+      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(DIRECT_IPC_CHANNELS.SUBSCRIBE, undefined)
     })
   })
 
@@ -176,9 +170,7 @@ describe('DirectIpcRenderer', () => {
     it('should handle errors when setting identifier', async () => {
       mockIpcRenderer.invoke.mockRejectedValueOnce(new Error('Conflict'))
 
-      await expect(directIpc.setIdentifier('duplicate')).rejects.toThrow(
-        'Conflict'
-      )
+      await expect(directIpc.setIdentifier('duplicate')).rejects.toThrow('Conflict')
     })
   })
 
@@ -210,15 +202,11 @@ describe('DirectIpcRenderer', () => {
       const targetAddedSpy = vi.fn()
       directIpc.localEvents.on('target-added', targetAddedSpy)
 
-      const newMap = [
-        { webContentsId: 1, url: 'https://example.com', identifier: 'test' },
-      ]
+      const newMap = [{ webContentsId: 1, url: 'https://example.com', identifier: 'test' }]
 
       mapUpdateListener({}, { map: newMap })
 
-      expect(targetAddedSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ webContentsId: 1 })
-      )
+      expect(targetAddedSpy).toHaveBeenCalledWith(expect.objectContaining({ webContentsId: 1 }))
     })
 
     it('should emit target-removed for removed entries', () => {
@@ -230,33 +218,25 @@ describe('DirectIpcRenderer', () => {
       directIpc.localEvents.on('target-removed', targetRemovedSpy)
 
       // Set initial map
-      const initialMap = [
-        { webContentsId: 1, url: 'https://example.com', identifier: 'test' },
-      ]
+      const initialMap = [{ webContentsId: 1, url: 'https://example.com', identifier: 'test' }]
       mapUpdateListener({}, { map: initialMap })
 
       // Update to empty map
       mapUpdateListener({}, { map: [] })
 
-      expect(targetRemovedSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ webContentsId: 1 })
-      )
+      expect(targetRemovedSpy).toHaveBeenCalledWith(expect.objectContaining({ webContentsId: 1 }))
     })
   })
 
   describe('refreshMap', () => {
     it('should invoke REFRESH_MAP and update local map', async () => {
-      const newMap = [
-        { webContentsId: 1, url: 'https://example.com', identifier: 'test' },
-      ]
+      const newMap = [{ webContentsId: 1, url: 'https://example.com', identifier: 'test' }]
 
       mockIpcRenderer.invoke.mockResolvedValueOnce(newMap)
 
       const result = await directIpc.refreshMap()
 
-      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
-        DIRECT_IPC_CHANNELS.REFRESH_MAP
-      )
+      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(DIRECT_IPC_CHANNELS.REFRESH_MAP)
       expect(result).toEqual(newMap)
       expect(directIpc.getMap()).toEqual(newMap)
     })
@@ -277,12 +257,7 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Trigger port arrival immediately before the async call
-      const sendPromise = directIpc.send(
-        { webContentsId: 2 },
-        'test-message',
-        'arg1',
-        'arg2'
-      )
+      const sendPromise = directIpc.send({ webContentsId: 2 }, 'test-message', 'arg1', 'arg2')
 
       // Simulate port arrival (this caches the port)
       portMessageListener(
@@ -331,11 +306,7 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Start the send before the port arrives
-      const sendPromise = directIpc.send(
-        { identifier: 'my-target' },
-        'test-message',
-        'arg1'
-      )
+      const sendPromise = directIpc.send({ identifier: 'my-target' }, 'test-message', 'arg1')
 
       // Simulate port arrival with matching identifier
       portMessageListener(
@@ -369,11 +340,7 @@ describe('DirectIpcRenderer', () => {
       )?.[1]
 
       // Start the send before the port arrives
-      const sendPromise = directIpc.send(
-        { url: /target\.com/ },
-        'test-message',
-        'arg1'
-      )
+      const sendPromise = directIpc.send({ url: /target\.com/ }, 'test-message', 'arg1')
 
       // Simulate port arrival with matching URL
       portMessageListener(
@@ -410,11 +377,7 @@ describe('DirectIpcRenderer', () => {
       directIpc.setDefaultTimeout(100)
 
       // Start the send
-      const sendPromise = directIpc.send(
-        { identifier: 'target-1' },
-        'test-message',
-        'arg1'
-      )
+      const sendPromise = directIpc.send({ identifier: 'target-1' }, 'test-message', 'arg1')
 
       // Simulate port arrival with DIFFERENT identifier
       portMessageListener(
@@ -523,9 +486,7 @@ describe('DirectIpcRenderer', () => {
       const handler = vi.fn(async () => 'response')
       directIpc.handle('test-channel', handler)
 
-      expect(mockLogger.silly).toHaveBeenCalledWith(
-        expect.stringContaining('Registering handler')
-      )
+      expect(mockLogger.silly).toHaveBeenCalledWith(expect.stringContaining('Registering handler'))
     })
 
     it('should remove a handler', () => {
@@ -533,18 +494,14 @@ describe('DirectIpcRenderer', () => {
       directIpc.handle('test-channel', handler)
       directIpc.removeHandler('test-channel')
 
-      expect(mockLogger.silly).toHaveBeenCalledWith(
-        expect.stringContaining('Removing handler')
-      )
+      expect(mockLogger.silly).toHaveBeenCalledWith(expect.stringContaining('Removing handler'))
     })
 
     it('should warn when replacing existing handler', () => {
       directIpc.handle('test-channel', vi.fn())
       directIpc.handle('test-channel', vi.fn())
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('already exists')
-      )
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('already exists'))
     })
   })
 
@@ -716,10 +673,9 @@ describe('DirectIpcRenderer', () => {
       await directIpc.send({ identifier: 'new-target' }, 'test-message')
 
       // Should have invoked the main process to get a new port
-      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
-        DIRECT_IPC_CHANNELS.GET_PORT,
-        { identifier: 'new-target' }
-      )
+      expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(DIRECT_IPC_CHANNELS.GET_PORT, {
+        identifier: 'new-target',
+      })
       // Should have sent the message via the new port
       expect(newPort.postMessage).toHaveBeenCalledWith({
         message: 'test-message',

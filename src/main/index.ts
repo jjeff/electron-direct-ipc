@@ -1,1 +1,1 @@
-export * from './DirectIpcMain';
+export * from './DirectIpcMain'

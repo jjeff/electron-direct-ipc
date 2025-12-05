@@ -14,10 +14,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { DirectIpcRenderer } from '../src/renderer/DirectIpcRenderer'
-import {
-  DirectIpcTarget,
-  DIRECT_IPC_CHANNELS,
-} from '../src/common/DirectIpcCommunication'
+import { DirectIpcTarget, DIRECT_IPC_CHANNELS } from '../src/common/DirectIpcCommunication'
 import { EventEmitter } from 'events'
 
 // Test message maps
@@ -65,25 +62,14 @@ class MockIpcRenderer extends EventEmitter {
   }
 
   // Register a handler for invoke calls (simulates main process)
-  registerInvokeHandler(
-    channel: string,
-    handler: (...args: any[]) => Promise<any>
-  ) {
+  registerInvokeHandler(channel: string, handler: (...args: any[]) => Promise<any>) {
     this.invokeHandlers.set(channel, handler)
   }
 }
 
 describe('DirectIpc Renderer Integration Tests', () => {
-  let renderer1: DirectIpcRenderer<
-    TestMessageMap,
-    TestInvokeMap,
-    TestIdentifiers
-  >
-  let renderer2: DirectIpcRenderer<
-    TestMessageMap,
-    TestInvokeMap,
-    TestIdentifiers
-  >
+  let renderer1: DirectIpcRenderer<TestMessageMap, TestInvokeMap, TestIdentifiers>
+  let renderer2: DirectIpcRenderer<TestMessageMap, TestInvokeMap, TestIdentifiers>
 
   let mockIpcRenderer1: MockIpcRenderer
   let mockIpcRenderer2: MockIpcRenderer
@@ -97,35 +83,29 @@ describe('DirectIpc Renderer Integration Tests', () => {
     mockIpcRenderer2 = new MockIpcRenderer()
 
     // Register mock handlers for subscribe - return the other renderer in the map
-    mockIpcRenderer1.registerInvokeHandler(
-      DIRECT_IPC_CHANNELS.SUBSCRIBE,
-      async () => {
-        return [
-          {
-            id: 2,
-            webContentsId: webContentsId2,
-            url: 'output-url',
-            identifier: 'output',
-            processType: 'renderer',
-          },
-        ]
-      }
-    )
+    mockIpcRenderer1.registerInvokeHandler(DIRECT_IPC_CHANNELS.SUBSCRIBE, async () => {
+      return [
+        {
+          id: 2,
+          webContentsId: webContentsId2,
+          url: 'output-url',
+          identifier: 'output',
+          processType: 'renderer',
+        },
+      ]
+    })
 
-    mockIpcRenderer2.registerInvokeHandler(
-      DIRECT_IPC_CHANNELS.SUBSCRIBE,
-      async () => {
-        return [
-          {
-            id: 1,
-            webContentsId: webContentsId1,
-            url: 'controller-url',
-            identifier: 'controller',
-            processType: 'renderer',
-          },
-        ]
-      }
-    )
+    mockIpcRenderer2.registerInvokeHandler(DIRECT_IPC_CHANNELS.SUBSCRIBE, async () => {
+      return [
+        {
+          id: 1,
+          webContentsId: webContentsId1,
+          url: 'controller-url',
+          identifier: 'controller',
+          processType: 'renderer',
+        },
+      ]
+    })
 
     // Keep track of MessageChannels created for each pair
     const messageChannels = new Map<string, MessageChannel>()
@@ -164,12 +144,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
               sender: {
                 id: requestingId,
                 webContentsId: requestingId,
-                url:
-                  requestingId === webContentsId1
-                    ? 'controller-url'
-                    : 'output-url',
-                identifier:
-                  requestingId === webContentsId1 ? 'controller' : 'output',
+                url: requestingId === webContentsId1 ? 'controller-url' : 'output-url',
+                identifier: requestingId === webContentsId1 ? 'controller' : 'output',
                 processType: 'renderer',
               },
             },
@@ -181,50 +157,28 @@ describe('DirectIpc Renderer Integration Tests', () => {
       return true
     }
 
-    mockIpcRenderer1.registerInvokeHandler(
-      DIRECT_IPC_CHANNELS.GET_PORT,
-      async (_target) => {
-        return getPortHandler(
-          mockIpcRenderer1,
-          webContentsId1,
-          mockIpcRenderer2,
-          webContentsId2,
-          {
-            id: 2,
-            webContentsId: webContentsId2,
-            url: 'output-url',
-            identifier: 'output',
-            processType: 'renderer',
-          }
-        )
-      }
-    )
+    mockIpcRenderer1.registerInvokeHandler(DIRECT_IPC_CHANNELS.GET_PORT, async (_target) => {
+      return getPortHandler(mockIpcRenderer1, webContentsId1, mockIpcRenderer2, webContentsId2, {
+        id: 2,
+        webContentsId: webContentsId2,
+        url: 'output-url',
+        identifier: 'output',
+        processType: 'renderer',
+      })
+    })
 
-    mockIpcRenderer2.registerInvokeHandler(
-      DIRECT_IPC_CHANNELS.GET_PORT,
-      async (_target) => {
-        return getPortHandler(
-          mockIpcRenderer2,
-          webContentsId2,
-          mockIpcRenderer1,
-          webContentsId1,
-          {
-            id: 1,
-            webContentsId: webContentsId1,
-            url: 'controller-url',
-            identifier: 'controller',
-            processType: 'renderer',
-          }
-        )
-      }
-    )
+    mockIpcRenderer2.registerInvokeHandler(DIRECT_IPC_CHANNELS.GET_PORT, async (_target) => {
+      return getPortHandler(mockIpcRenderer2, webContentsId2, mockIpcRenderer1, webContentsId1, {
+        id: 1,
+        webContentsId: webContentsId1,
+        url: 'controller-url',
+        identifier: 'controller',
+        processType: 'renderer',
+      })
+    })
 
     // Create DirectIpcRenderer instances
-    renderer1 = DirectIpcRenderer._createInstance<
-      TestMessageMap,
-      TestInvokeMap,
-      TestIdentifiers
-    >(
+    renderer1 = DirectIpcRenderer._createInstance<TestMessageMap, TestInvokeMap, TestIdentifiers>(
       {
         identifier: 'controller',
         log: { silly: vi.fn(), error: vi.fn() },
@@ -232,11 +186,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       { ipcRenderer: mockIpcRenderer1 as any }
     )
 
-    renderer2 = DirectIpcRenderer._createInstance<
-      TestMessageMap,
-      TestInvokeMap,
-      TestIdentifiers
-    >(
+    renderer2 = DirectIpcRenderer._createInstance<TestMessageMap, TestInvokeMap, TestIdentifiers>(
       {
         identifier: 'output',
         log: { silly: vi.fn(), error: vi.fn() },
@@ -312,18 +262,8 @@ describe('DirectIpc Renderer Integration Tests', () => {
         expect(volumeListener).toHaveBeenCalledTimes(1)
       })
 
-      expect(positionListener).toHaveBeenNthCalledWith(
-        1,
-        expect.anything(),
-        100,
-        200
-      )
-      expect(positionListener).toHaveBeenNthCalledWith(
-        2,
-        expect.anything(),
-        150,
-        250
-      )
+      expect(positionListener).toHaveBeenNthCalledWith(1, expect.anything(), 100, 200)
+      expect(positionListener).toHaveBeenNthCalledWith(2, expect.anything(), 150, 250)
       expect(volumeListener).toHaveBeenCalledWith(expect.anything(), 75)
     })
   })
@@ -408,11 +348,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       })
 
       // Invoke from renderer1
-      const result = await renderer1.invoke(
-        { identifier: 'output' },
-        'get-data',
-        'user-123'
-      )
+      const result = await renderer1.invoke({ identifier: 'output' }, 'get-data', 'user-123')
 
       expect(result).toEqual({ id: 'user-123', name: 'User user-123' })
     })
@@ -427,11 +363,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Invoke should reject
       await expect(
-        renderer1.invoke(
-          { identifier: 'output' },
-          'get-data',
-          'invalid-id'
-        )
+        renderer1.invoke({ identifier: 'output' }, 'get-data', 'invalid-id')
       ).rejects.toThrow('User invalid-id not found')
     })
 
@@ -470,12 +402,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
       })
 
       // Invoke via throttled
-      const result = await renderer1.throttled.invoke(
-        { identifier: 'output' },
-        'calculate',
-        5,
-        7
-      )
+      const result = await renderer1.throttled.invoke({ identifier: 'output' }, 'calculate', 5, 7)
 
       expect(result).toBe(35)
     })
@@ -622,9 +549,7 @@ describe('DirectIpc Renderer Integration Tests', () => {
 
       // Wait for the listener to be called
       await vi.waitFor(() => {
-        expect(listener).toHaveBeenCalledWith(
-          expect.objectContaining({ identifier: 'output' })
-        )
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({ identifier: 'output' }))
       })
     })
   })

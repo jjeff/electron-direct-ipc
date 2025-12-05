@@ -6,16 +6,16 @@ import {
   webContents,
   WebContents,
   UtilityProcess,
-} from 'electron';
+} from 'electron'
 import {
   DIRECT_IPC_CHANNELS,
   DirectIpcMapUpdateMessage,
   DirectIpcPortMessage,
   DirectIpcTarget,
   ProcessType,
-} from '../common/DirectIpcCommunication.js';
-import { consoleLogger } from "../common/DirectIpcLogger.js";
-import { IdentifierConflictError } from '../utility/errors.js';
+} from '../common/DirectIpcCommunication.js'
+import { consoleLogger } from '../common/DirectIpcLogger.js'
+import { IdentifierConflictError } from '../utility/errors.js'
 
 /**
  * Main process DirectIpc coordinator
@@ -31,7 +31,7 @@ export class DirectIpcMain {
    */
   protected static isMainProcess(): boolean {
     // In Electron, the main process does not have a 'window' object
-    return typeof window === 'undefined' && process && process.type === 'browser';
+    return typeof window === 'undefined' && process && process.type === 'browser'
   }
 
   /**
@@ -52,8 +52,8 @@ export class DirectIpcMain {
   }
 
   public static init(options = {} as Partial<Pick<DirectIpcMain['d'], 'log'>>): DirectIpcMain {
-    return this.instance(options);
-  } 
+    return this.instance(options)
+  }
 
   /** Dependencies */
   private d = {
@@ -99,9 +99,7 @@ export class DirectIpcMain {
     if (!rawUrl) return ''
     const u = new URL(rawUrl)
     const urlWithoutArgs = `${u.origin}${u.pathname}`
-    return urlWithoutArgs.length > 100
-      ? '...' + urlWithoutArgs.slice(-100)
-      : urlWithoutArgs
+    return urlWithoutArgs.length > 100 ? '...' + urlWithoutArgs.slice(-100) : urlWithoutArgs
   }
 
   /**
@@ -109,20 +107,14 @@ export class DirectIpcMain {
    */
   private setupIpcHandlers(): void {
     // Handle subscription requests
-    this.d.ipcMain.handle(
-      DIRECT_IPC_CHANNELS.SUBSCRIBE,
-      (event, identifier?: string) => {
-        return this.handleSubscribe(event.sender, identifier)
-      }
-    )
+    this.d.ipcMain.handle(DIRECT_IPC_CHANNELS.SUBSCRIBE, (event, identifier?: string) => {
+      return this.handleSubscribe(event.sender, identifier)
+    })
 
     // Handle identifier update requests
-    this.d.ipcMain.handle(
-      DIRECT_IPC_CHANNELS.UPDATE_IDENTIFIER,
-      (event, identifier: string) => {
-        return this.handleUpdateIdentifier(event.sender, identifier)
-      }
-    )
+    this.d.ipcMain.handle(DIRECT_IPC_CHANNELS.UPDATE_IDENTIFIER, (event, identifier: string) => {
+      return this.handleUpdateIdentifier(event.sender, identifier)
+    })
 
     // Handle port requests
     this.d.ipcMain.handle(
@@ -176,9 +168,7 @@ export class DirectIpcMain {
 
     // Only update and broadcast if URL actually changed
     if (target.url !== newUrl) {
-      const identifier = target.identifier
-        ? `"${target.identifier}"`
-        : `#${webContentsId}`
+      const identifier = target.identifier ? `"${target.identifier}"` : `#${webContentsId}`
       this.d.log.silly?.(
         `DirectIpcMain::handleUrlChanged - ${identifier}: ${target.url} -> ${newUrl}`
       )
@@ -190,10 +180,7 @@ export class DirectIpcMain {
   /**
    * Handle a subscription request from a renderer
    */
-  private handleSubscribe(
-    sender: WebContents,
-    identifier?: string
-  ): DirectIpcTarget[] {
+  private handleSubscribe(sender: WebContents, identifier?: string): DirectIpcTarget[] {
     const webContentsId = sender.id
     const url = sender.getURL()
 
@@ -259,10 +246,7 @@ export class DirectIpcMain {
   /**
    * Handle an identifier update request
    */
-  private handleUpdateIdentifier(
-    sender: WebContents,
-    newIdentifier: string
-  ): void {
+  private handleUpdateIdentifier(sender: WebContents, newIdentifier: string): void {
     const webContentsId = sender.id
     const processId = this.webContentsIdMap.get(webContentsId)
 
@@ -291,9 +275,7 @@ export class DirectIpcMain {
       )
     }
 
-    const oldIdentifier = existing.identifier
-      ? `"${existing.identifier}"`
-      : '(none)'
+    const oldIdentifier = existing.identifier ? `"${existing.identifier}"` : '(none)'
     const urlStr = existing.url ? this.truncatedUrl(existing.url) : '(no url)'
     this.d.log.silly?.(
       `DirectIpcMain::handleUpdateIdentifier - process ${processId} (webContents #${webContentsId}) at ${urlStr}: ${oldIdentifier} -> "${newIdentifier}"`
@@ -327,9 +309,7 @@ export class DirectIpcMain {
     // Get sender process ID
     const senderProcessId = this.webContentsIdMap.get(sender.id)
     if (!senderProcessId) {
-      this.d.log.error?.(
-        `DirectIpcMain::handleGetPort - Sender not registered: #${sender.id}`
-      )
+      this.d.log.error?.(`DirectIpcMain::handleGetPort - Sender not registered: #${sender.id}`)
       return false
     }
 
@@ -387,15 +367,20 @@ export class DirectIpcMain {
     if (targetInfo.processType === ProcessType.RENDERER && targetInfo.webContentsId) {
       const targetWebContents = this.d.webContents.fromId(targetInfo.webContentsId)
       if (targetWebContents) {
-        targetWebContents.postMessage(DIRECT_IPC_CHANNELS.PORT_MESSAGE, portMessageToTarget, [port2])
+        targetWebContents.postMessage(DIRECT_IPC_CHANNELS.PORT_MESSAGE, portMessageToTarget, [
+          port2,
+        ])
       }
     } else if (targetInfo.processType === ProcessType.UTILITY) {
       const utilityProcess = this.utilityProcessMap.get(targetProcessId)
       if (utilityProcess) {
-        utilityProcess.postMessage({
-          channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
-          ...portMessageToTarget
-        }, [port2])
+        utilityProcess.postMessage(
+          {
+            channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
+            ...portMessageToTarget,
+          },
+          [port2]
+        )
       }
     }
 
@@ -531,24 +516,32 @@ export class DirectIpcMain {
       if (targetInfo.processType === ProcessType.RENDERER && targetInfo.webContentsId) {
         const targetWebContents = this.d.webContents.fromId(targetInfo.webContentsId)
         if (targetWebContents) {
-          targetWebContents.postMessage(DIRECT_IPC_CHANNELS.PORT_MESSAGE, portMessageToTarget, [port2])
+          targetWebContents.postMessage(DIRECT_IPC_CHANNELS.PORT_MESSAGE, portMessageToTarget, [
+            port2,
+          ])
         }
       } else if (targetInfo.processType === ProcessType.UTILITY) {
         const targetUtilityProcess = this.utilityProcessMap.get(targetProcessId)
         if (targetUtilityProcess) {
-          targetUtilityProcess.postMessage({
-            channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
-            ...portMessageToTarget
-          }, [port2])
+          targetUtilityProcess.postMessage(
+            {
+              channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
+              ...portMessageToTarget,
+            },
+            [port2]
+          )
         }
       }
 
       // Send port1 back to utility process
       const portMessageToUtility: DirectIpcPortMessage = { sender: targetInfo }
-      utilityProcess.postMessage({
-        channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
-        ...portMessageToUtility
-      }, [port1])
+      utilityProcess.postMessage(
+        {
+          channel: DIRECT_IPC_CHANNELS.PORT_MESSAGE,
+          ...portMessageToUtility,
+        },
+        [port1]
+      )
 
       // Mark pair as having a channel
       this.channelPairs.set(pairKey, true)
@@ -627,12 +620,8 @@ export class DirectIpcMain {
     const target = this.registry.get(processId)
     if (!target) return
 
-    const identifier = target.identifier
-      ? `"${target.identifier}"`
-      : `#${webContentsId}`
-    this.d.log.silly?.(
-      `DirectIpcMain::handleWebContentsDestroyed - ${identifier}`
-    )
+    const identifier = target.identifier ? `"${target.identifier}"` : `#${webContentsId}`
+    this.d.log.silly?.(`DirectIpcMain::handleWebContentsDestroyed - ${identifier}`)
 
     // Remove from registry
     this.registry.delete(processId)
@@ -741,7 +730,10 @@ export class DirectIpcMain {
     const existingProcessId = this.identifierMap.get(identifier)
     if (existingProcessId !== undefined) {
       const existingProcess = this.registry.get(existingProcessId)
-      throw new IdentifierConflictError(identifier, existingProcess?.processType || ProcessType.RENDERER)
+      throw new IdentifierConflictError(
+        identifier,
+        existingProcess?.processType || ProcessType.RENDERER
+      )
     }
 
     this.d.log.silly?.(

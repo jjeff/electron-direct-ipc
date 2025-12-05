@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { EventEmitter } from 'events'
 import { DirectIpcUtility, RegistrationState } from '../src/utility/DirectIpcUtility'
 import { DirectIpcUtilityThrottled } from '../src/utility/DirectIpcUtilityThrottled'
-import { DirectIpcTarget, ProcessType, DIRECT_IPC_CHANNELS } from '../src/common/DirectIpcCommunication'
+import {
+  DirectIpcTarget,
+  ProcessType,
+  DIRECT_IPC_CHANNELS,
+} from '../src/common/DirectIpcCommunication'
 
 // Test message map
 type TestMessageMap = {
@@ -47,7 +51,13 @@ describe('DirectIpcUtilityThrottled', () => {
 
     // Mock getMap for sendToAll* detection
     vi.spyOn(utility, 'getMap').mockReturnValue([
-      { id: 1, webContentsId: 1, url: 'test', identifier: 'renderer', processType: ProcessType.RENDERER },
+      {
+        id: 1,
+        webContentsId: 1,
+        url: 'test',
+        identifier: 'renderer',
+        processType: ProcessType.RENDERER,
+      },
     ])
 
     // Mock on() method to track listener registrations
@@ -102,12 +112,7 @@ describe('DirectIpcUtilityThrottled', () => {
       })
 
       // Should only send the last message
-      expect(utility.send).toHaveBeenCalledWith(
-        { identifier: 'renderer' },
-        'position-update',
-        3,
-        3
-      )
+      expect(utility.send).toHaveBeenCalledWith({ identifier: 'renderer' }, 'position-update', 3, 3)
     })
 
     it('should send messages to different targets separately', async () => {
@@ -118,12 +123,7 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(2)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { identifier: 'renderer' },
-        'position-update',
-        1,
-        1
-      )
+      expect(utility.send).toHaveBeenCalledWith({ identifier: 'renderer' }, 'position-update', 1, 1)
       expect(utility.send).toHaveBeenCalledWith(
         { identifier: 'controller' },
         'position-update',
@@ -140,17 +140,8 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(2)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { identifier: 'renderer' },
-        'position-update',
-        1,
-        1
-      )
-      expect(utility.send).toHaveBeenCalledWith(
-        { identifier: 'renderer' },
-        'volume-change',
-        50
-      )
+      expect(utility.send).toHaveBeenCalledWith({ identifier: 'renderer' }, 'position-update', 1, 1)
+      expect(utility.send).toHaveBeenCalledWith({ identifier: 'renderer' }, 'volume-change', 50)
     })
 
     it('should coalesce send calls with webContentsId', async () => {
@@ -162,11 +153,7 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { webContentsId: 1 },
-        'volume-change',
-        30
-      )
+      expect(utility.send).toHaveBeenCalledWith({ webContentsId: 1 }, 'volume-change', 30)
     })
 
     it('should coalesce send calls with url', async () => {
@@ -178,11 +165,9 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { url: 'test://renderer' },
-        'data-update',
-        { value: 3 }
-      )
+      expect(utility.send).toHaveBeenCalledWith({ url: 'test://renderer' }, 'data-update', {
+        value: 3,
+      })
     })
 
     it('should handle mixed send method calls', async () => {
@@ -221,11 +206,7 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { allUrls: /test:\/\/.*/ },
-        'volume-change',
-        30
-      )
+      expect(utility.send).toHaveBeenCalledWith({ allUrls: /test:\/\/.*/ }, 'volume-change', 30)
     })
   })
 
@@ -544,11 +525,7 @@ describe('DirectIpcUtilityThrottled', () => {
         expect(utility.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(utility.send).toHaveBeenCalledWith(
-        { identifier: 'renderer' },
-        'volume-change',
-        0
-      )
+      expect(utility.send).toHaveBeenCalledWith({ identifier: 'renderer' }, 'volume-change', 0)
     })
 
     it('should handle complex object arguments', async () => {

@@ -119,11 +119,7 @@ describe('DirectIpcThrottled', () => {
         1,
         1
       )
-      expect(mockDirectIpc.send).toHaveBeenCalledWith(
-        { identifier: 'output' },
-        'volume-change',
-        50
-      )
+      expect(mockDirectIpc.send).toHaveBeenCalledWith({ identifier: 'output' }, 'volume-change', 50)
     })
 
     it('should coalesce sendToWebContentsId calls', async () => {
@@ -135,11 +131,7 @@ describe('DirectIpcThrottled', () => {
         expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.send).toHaveBeenCalledWith(
-        { webContentsId: 1 },
-        'volume-change',
-        30
-      )
+      expect(mockDirectIpc.send).toHaveBeenCalledWith({ webContentsId: 1 }, 'volume-change', 30)
     })
 
     it('should coalesce sendToUrl calls', async () => {
@@ -151,11 +143,9 @@ describe('DirectIpcThrottled', () => {
         expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.send).toHaveBeenCalledWith(
-        { url: 'test://output' },
-        'data-update',
-        { value: 3 }
-      )
+      expect(mockDirectIpc.send).toHaveBeenCalledWith({ url: 'test://output' }, 'data-update', {
+        value: 3,
+      })
     })
 
     it('should handle mixed send method calls', async () => {
@@ -518,11 +508,7 @@ describe('DirectIpcThrottled', () => {
         expect(mockDirectIpc.send).toHaveBeenCalledTimes(1)
       })
 
-      expect(mockDirectIpc.send).toHaveBeenCalledWith(
-        { identifier: 'output' },
-        'volume-change',
-        0
-      )
+      expect(mockDirectIpc.send).toHaveBeenCalledWith({ identifier: 'output' }, 'volume-change', 0)
     })
 
     it('should handle complex object arguments', async () => {
