@@ -17,10 +17,7 @@ import {
   DirectIpcBase,
   CachedPort,
 } from '../common/index.js'
-import {
-  DirectIpcLogger,
-  consoleLogger,
-} from '../common/DirectIpcLogger.js'
+import { DirectIpcLogger, consoleLogger } from '../common/DirectIpcLogger.js'
 import { DirectIpcUtilityThrottled } from './DirectIpcUtilityThrottled.js'
 
 // Electron provides process.parentPort in utility processes
@@ -54,9 +51,7 @@ export interface QueuedMessage {
 /**
  * Options for DirectIpcUtility
  */
-export interface DirectIpcUtilityOptions<
-  TIdentifierStrings extends string = string,
-> {
+export interface DirectIpcUtilityOptions<TIdentifierStrings extends string = string> {
   log?: DirectIpcLogger
   identifier?: TIdentifierStrings
   defaultTimeout?: number
@@ -75,12 +70,7 @@ export class DirectIpcUtility<
   TMessageMap extends EventMap = EventMap,
   TInvokeMap extends InvokeMap = InvokeMap,
   TIdentifierStrings extends string = string,
-> extends DirectIpcBase<
-  TMessageMap,
-  TInvokeMap,
-  TIdentifierStrings,
-  Electron.MessagePortMain
-> {
+> extends DirectIpcBase<TMessageMap, TInvokeMap, TIdentifierStrings, Electron.MessagePortMain> {
   // Singleton
   private static _instance: DirectIpcUtility | null = null
 
@@ -153,11 +143,7 @@ export class DirectIpcUtility<
    * // Important events (not throttled)
    * directIpc.send({ identifier: 'renderer' }, 'button-clicked')
    */
-  public readonly throttled: DirectIpcUtilityThrottled<
-    TMessageMap,
-    TInvokeMap,
-    TIdentifierStrings
-  >
+  public readonly throttled: DirectIpcUtilityThrottled<TMessageMap, TInvokeMap, TIdentifierStrings>
 
   constructor(options?: DirectIpcUtilityOptions<TIdentifierStrings>) {
     super()
@@ -188,10 +174,7 @@ export class DirectIpcUtility<
   /**
    * Send message via a MessagePortMain
    */
-  protected postMessageToPort(
-    port: Electron.MessagePortMain,
-    message: unknown
-  ): void {
+  protected postMessageToPort(port: Electron.MessagePortMain, message: unknown): void {
     port.postMessage(message)
   }
 
@@ -225,9 +208,7 @@ export class DirectIpcUtility<
   /**
    * Find targets matching a selector
    */
-  protected findTargets(
-    selector: TargetSelector<TIdentifierStrings>
-  ): DirectIpcTarget[] {
+  protected findTargets(selector: TargetSelector<TIdentifierStrings>): DirectIpcTarget[] {
     if ('identifier' in selector) {
       const pattern = selector.identifier
       return this.map.filter((t) => {
@@ -376,10 +357,7 @@ export class DirectIpcUtility<
         const error = new Error(
           `Utility process registration timed out after ${this.registrationTimeout}ms`
         )
-        this.log.error?.(
-          'DirectIpcUtility::initializeRegistration - Timeout:',
-          error
-        )
+        this.log.error?.('DirectIpcUtility::initializeRegistration - Timeout:', error)
         this.registrationState = RegistrationState.FAILED
         this.localEvents.emit('registration-failed', error)
       }
@@ -529,13 +507,8 @@ export class DirectIpcUtility<
 
     for (const queuedMsg of queue) {
       try {
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (this.send as any)(
-          queuedMsg.target,
-          queuedMsg.message,
-          ...queuedMsg.args
-        )
+        await (this.send as any)(queuedMsg.target, queuedMsg.message, ...queuedMsg.args)
       } catch (error) {
         this.log.error?.(
           `DirectIpcUtility::flushMessageQueue - Error flushing message "${queuedMsg.message}":`,
@@ -571,17 +544,13 @@ export class DirectIpcUtility<
     // Find target processes
     const targets = this.findTargets(target)
     if (targets.length === 0) {
-      this.log.warn?.(
-        `DirectIpcUtility::send - No targets found for message "${String(message)}"`
-      )
+      this.log.warn?.(`DirectIpcUtility::send - No targets found for message "${String(message)}"`)
       return
     }
 
     // Send to each target
     for (const t of targets) {
-      this.log.debug?.(
-        `DirectIpcUtility::send - Calling sendToTarget for ${t.identifier || t.id}`
-      )
+      this.log.debug?.(`DirectIpcUtility::send - Calling sendToTarget for ${t.identifier || t.id}`)
       await this.sendToTarget(t, message, args)
     }
   }
@@ -608,9 +577,7 @@ export class DirectIpcUtility<
     }
 
     if (!cachedPort) {
-      this.log.warn?.(
-        `DirectIpcUtility::sendToTarget - No port available for ${targetId}`
-      )
+      this.log.warn?.(`DirectIpcUtility::sendToTarget - No port available for ${targetId}`)
       return
     }
 
@@ -630,13 +597,15 @@ export class DirectIpcUtility<
   /**
    * Request a MessagePort for a target process
    */
-  private async requestPort(
-    target: DirectIpcTarget
-  ): Promise<Electron.MessagePortMain> {
-    const parentPort = (process as NodeJS.Process & { parentPort?: unknown }).parentPort as unknown as
+  private async requestPort(target: DirectIpcTarget): Promise<Electron.MessagePortMain> {
+    const parentPort = (process as NodeJS.Process & { parentPort?: unknown })
+      .parentPort as unknown as
       | {
           postMessage: (value: unknown, transfer?: unknown[]) => void
-          on: (event: string, listener: (event: { data: unknown; ports?: Electron.MessagePortMain[] }) => void) => void
+          on: (
+            event: string,
+            listener: (event: { data: unknown; ports?: Electron.MessagePortMain[] }) => void
+          ) => void
           removeListener: (event: string, listener: (...args: unknown[]) => void) => void
         }
       | undefined

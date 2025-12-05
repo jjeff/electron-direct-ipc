@@ -20,13 +20,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { EventEmitter } from 'events'
 import { DirectIpcUtility, RegistrationState } from '../src/utility/DirectIpcUtility.js'
-import { DIRECT_IPC_CHANNELS, DirectIpcTarget, ProcessType } from '../src/common/DirectIpcCommunication.js'
+import {
+  DIRECT_IPC_CHANNELS,
+  DirectIpcTarget,
+  ProcessType,
+} from '../src/common/DirectIpcCommunication.js'
 
 // Test message maps
 type TestMessageMap = {
   'compute-request': (data: number) => void
   'compute-result': (result: number) => void
-  'status': (message: string) => void
+  status: (message: string) => void
 }
 
 type TestInvokeMap = {

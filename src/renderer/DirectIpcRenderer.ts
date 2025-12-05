@@ -16,19 +16,14 @@ import {
   DirectIpcBase,
   CachedPort,
 } from '../common/index.js'
-import {
-  DirectIpcLogger,
-  consoleLogger,
-} from '../common/DirectIpcLogger.js'
+import { DirectIpcLogger, consoleLogger } from '../common/DirectIpcLogger.js'
 import { DirectIpcThrottled } from './DirectIpcThrottled.js'
 
 /**
  * Options for DirectIpcRenderer
  * @template TIdentifierStrings - Union of allowed identifier strings
  */
-export interface DirectIpcRendererOptions<
-  TIdentifierStrings extends string = string,
-> {
+export interface DirectIpcRendererOptions<TIdentifierStrings extends string = string> {
   log?: DirectIpcLogger
   identifier?: TIdentifierStrings
   defaultTimeout?: number
@@ -197,10 +192,7 @@ export class DirectIpcRenderer<
   /**
    * Set up message listener on a MessagePort
    */
-  protected setupPortListener(
-    port: MessagePort,
-    handler: (data: unknown) => void
-  ): void {
+  protected setupPortListener(port: MessagePort, handler: (data: unknown) => void): void {
     port.onmessage = (e: MessageEvent) => handler(e.data)
   }
 
@@ -228,14 +220,11 @@ export class DirectIpcRenderer<
   /**
    * Find targets matching a selector
    */
-  protected findTargets(
-    selector: TargetSelector<TIdentifierStrings>
-  ): DirectIpcTarget[] {
+  protected findTargets(selector: TargetSelector<TIdentifierStrings>): DirectIpcTarget[] {
     // Handle "all" patterns
     if ('allIdentifiers' in selector) {
       const identifier = selector.allIdentifiers
-      const regex =
-        typeof identifier === 'string' ? new RegExp(identifier) : identifier
+      const regex = typeof identifier === 'string' ? new RegExp(identifier) : identifier
       return this.map.filter((p) => p.identifier && regex.test(p.identifier))
     }
 
@@ -257,13 +246,9 @@ export class DirectIpcRenderer<
         return match ? [match] : []
       } else if (selector.identifier instanceof RegExp) {
         const regex = selector.identifier
-        const matches = this.map.filter(
-          (t) => t.identifier && regex.test(t.identifier)
-        )
+        const matches = this.map.filter((t) => t.identifier && regex.test(t.identifier))
         if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for identifier regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for identifier regex')
         }
         return matches
       }
@@ -277,9 +262,7 @@ export class DirectIpcRenderer<
         const regex = selector.url
         const matches = this.map.filter((t) => t.url && regex.test(t.url))
         if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for URL regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for URL regex')
         }
         return matches
       }
@@ -304,9 +287,7 @@ export class DirectIpcRenderer<
     if (processId !== undefined) {
       const cached = this.portCache.get(processId)
       if (cached) {
-        this.log.silly?.(
-          `DirectIpcRenderer::getPort - Using cached port for process ${processId}`
-        )
+        this.log.silly?.(`DirectIpcRenderer::getPort - Using cached port for process ${processId}`)
         return cached.port
       }
     }
@@ -324,12 +305,9 @@ export class DirectIpcRenderer<
             typeof target.identifier === 'string'
               ? new RegExp(`^${target.identifier}$`)
               : target.identifier
-          isMatch = addedTarget.identifier
-            ? regex.test(addedTarget.identifier)
-            : false
+          isMatch = addedTarget.identifier ? regex.test(addedTarget.identifier) : false
         } else if (target.url !== undefined) {
-          const regex =
-            typeof target.url === 'string' ? new RegExp(target.url) : target.url
+          const regex = typeof target.url === 'string' ? new RegExp(target.url) : target.url
           isMatch = addedTarget.url ? regex.test(addedTarget.url) : false
         }
 
@@ -361,10 +339,7 @@ export class DirectIpcRenderer<
     })
 
     // Request port from main process
-    const success = await this.d.ipcRenderer.invoke(
-      DIRECT_IPC_CHANNELS.GET_PORT,
-      target
-    )
+    const success = await this.d.ipcRenderer.invoke(DIRECT_IPC_CHANNELS.GET_PORT, target)
 
     if (!success) {
       throw new Error('DirectIpc: Failed to get port for target')
@@ -408,10 +383,7 @@ export class DirectIpcRenderer<
    */
   private async subscribe(identifier?: TIdentifierStrings): Promise<void> {
     try {
-      const map = await this.d.ipcRenderer.invoke(
-        DIRECT_IPC_CHANNELS.SUBSCRIBE,
-        identifier
-      )
+      const map = await this.d.ipcRenderer.invoke(DIRECT_IPC_CHANNELS.SUBSCRIBE, identifier)
       this.handleMapUpdate(map)
       if (identifier) {
         this.myIdentifier = identifier
@@ -431,14 +403,9 @@ export class DirectIpcRenderer<
       if (this.myIdentifier === identifier) {
         return
       }
-      await this.d.ipcRenderer.invoke(
-        DIRECT_IPC_CHANNELS.UPDATE_IDENTIFIER,
-        identifier
-      )
+      await this.d.ipcRenderer.invoke(DIRECT_IPC_CHANNELS.UPDATE_IDENTIFIER, identifier)
       this.myIdentifier = identifier
-      this.log.silly?.(
-        `DirectIpcRenderer::setIdentifier - Set to ${identifier}`
-      )
+      this.log.silly?.(`DirectIpcRenderer::setIdentifier - Set to ${identifier}`)
     } catch (error) {
       this.log.error?.('DirectIpcRenderer::setIdentifier - Failed:', error)
       throw error
@@ -448,10 +415,7 @@ export class DirectIpcRenderer<
   /**
    * Handle incoming MessagePort from main process
    */
-  private handlePortMessage(
-    port: MessagePort,
-    senderInfo: DirectIpcTarget
-  ): void {
+  private handlePortMessage(port: MessagePort, senderInfo: DirectIpcTarget): void {
     const senderStr = senderInfo.identifier ? `"${senderInfo.identifier}"` : `#${senderInfo.id}`
     this.log.info?.(
       `DirectIpcRenderer::handlePortMessage - Received port from ${senderStr} (${senderInfo.processType})`
@@ -459,9 +423,7 @@ export class DirectIpcRenderer<
 
     // Set up port message handler
     port.onmessage = (
-      e: MessageEvent<
-        DirectIpcMessage<TMessageMap> | InvokeMessage | InvokeResponse
-      >
+      e: MessageEvent<DirectIpcMessage<TMessageMap> | InvokeMessage | InvokeResponse>
     ) => {
       const data = e.data
 
@@ -482,9 +444,7 @@ export class DirectIpcRenderer<
       // Also emit the specific message type
       this.emit(
         m.message,
-        ...([senderInfo, ...m.args] as Parameters<
-          WithSender<TMessageMap>[keyof TMessageMap]
-        >)
+        ...([senderInfo, ...m.args] as Parameters<WithSender<TMessageMap>[keyof TMessageMap]>)
       )
     }
 
@@ -531,16 +491,12 @@ export class DirectIpcRenderer<
       } else if (target.identifier instanceof RegExp) {
         const regex = target.identifier
 
-        const matches = this.map.filter(
-          (t) => t.identifier && regex.test(t.identifier)
-        )
+        const matches = this.map.filter((t) => t.identifier && regex.test(t.identifier))
 
         if (matches.length === 1) {
           return matches[0]!.id
         } else if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for identifier regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for identifier regex')
         }
         // No matches - return undefined
         return undefined
@@ -561,9 +517,7 @@ export class DirectIpcRenderer<
         if (matches.length === 1) {
           return matches[0]!.id
         } else if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for URL regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for URL regex')
         }
         // No matches - return undefined
         return undefined
@@ -596,16 +550,12 @@ export class DirectIpcRenderer<
       } else if (target.identifier instanceof RegExp) {
         const regex = target.identifier
 
-        const matches = this.map.filter(
-          (t) => t.identifier && regex.test(t.identifier)
-        )
+        const matches = this.map.filter((t) => t.identifier && regex.test(t.identifier))
 
         if (matches.length === 1) {
           return matches[0]!.webContentsId
         } else if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for identifier regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for identifier regex')
         }
         // No matches - return undefined
         return undefined
@@ -626,9 +576,7 @@ export class DirectIpcRenderer<
         if (matches.length === 1) {
           return matches[0]!.webContentsId
         } else if (matches.length > 1) {
-          throw new Error(
-            'DirectIpcRenderer::Multiple matches found for URL regex'
-          )
+          throw new Error('DirectIpcRenderer::Multiple matches found for URL regex')
         }
         // No matches - return undefined
         return undefined
@@ -668,9 +616,7 @@ export class DirectIpcRenderer<
       const targets = this.findTargets(target)
 
       if (targets.length === 0) {
-        this.log.warn?.(
-          `DirectIpcRenderer::send - No targets found for pattern`
-        )
+        this.log.warn?.(`DirectIpcRenderer::send - No targets found for pattern`)
         return
       }
 
@@ -798,19 +744,14 @@ export class DirectIpcRenderer<
   /**
    * Handle an incoming invoke request
    */
-  private async handleInvokeRequest(
-    port: MessagePort,
-    message: InvokeMessage
-  ): Promise<void> {
+  private async handleInvokeRequest(port: MessagePort, message: InvokeMessage): Promise<void> {
     const { channel, requestId, args } = message
 
     this.log.silly?.('DirectIpcRenderer::handleInvokeRequest - handling invoke')
 
     const handler = this.handlers.get(channel)
     if (!handler) {
-      this.log.error?.(
-        'DirectIpcRenderer::handleInvokeRequest - No handler for channel'
-      )
+      this.log.error?.('DirectIpcRenderer::handleInvokeRequest - No handler for channel')
       const response: InvokeResponse = {
         type: 'invoke-response',
         requestId,
@@ -823,9 +764,7 @@ export class DirectIpcRenderer<
 
     try {
       // get the cached port info for the sender
-      const senderInfo = Array.from(this.portCache.values()).find(
-        (c) => c.port === port
-      )?.info
+      const senderInfo = Array.from(this.portCache.values()).find((c) => c.port === port)?.info
       const result = await handler(senderInfo, ...args)
       const response: InvokeResponse = {
         type: 'invoke-response',
@@ -835,10 +774,7 @@ export class DirectIpcRenderer<
       }
       port.postMessage(response)
     } catch (error) {
-      this.log.error?.(
-        'DirectIpcRenderer::handleInvokeRequest - Handler error',
-        error
-      )
+      this.log.error?.('DirectIpcRenderer::handleInvokeRequest - Handler error', error)
       const response: InvokeResponse = {
         type: 'invoke-response',
         requestId,

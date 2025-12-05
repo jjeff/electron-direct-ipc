@@ -122,10 +122,7 @@ export type InvokeHandler<T extends InvokeMap = InvokeMap> = (
  * Used to transform handler signatures when receiving messages from other processes.
  */
 export type WithSender<T extends EventMap> = {
-  [K in keyof T]: (
-    sender: DirectIpcTarget,
-    ...args: Parameters<T[K]>
-  ) => ReturnType<T[K]>
+  [K in keyof T]: (sender: DirectIpcTarget, ...args: Parameters<T[K]>) => ReturnType<T[K]>
 }
 
 /**
@@ -137,10 +134,7 @@ export interface TypedEventEmitter<Events extends EventMap> {
   on<E extends keyof Events>(event: E, listener: Events[E]): this
   once<E extends keyof Events>(event: E, listener: Events[E]): this
   prependListener<E extends keyof Events>(event: E, listener: Events[E]): this
-  prependOnceListener<E extends keyof Events>(
-    event: E,
-    listener: Events[E]
-  ): this
+  prependOnceListener<E extends keyof Events>(event: E, listener: Events[E]): this
 
   off<E extends keyof Events>(event: E, listener: Events[E]): this
   removeAllListeners<E extends keyof Events>(event?: E): this

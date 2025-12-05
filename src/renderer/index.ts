@@ -1,1 +1,1 @@
-export * from './DirectIpcRenderer';
+export * from './DirectIpcRenderer'

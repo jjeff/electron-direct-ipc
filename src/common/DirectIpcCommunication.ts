@@ -77,7 +77,7 @@ export const DIRECT_IPC_CHANNELS = {
  * Type guard: Check if target is a renderer process
  */
 export function isRenderer(
-  target: DirectIpcTarget,
+  target: DirectIpcTarget
 ): target is DirectIpcTarget & { webContentsId: number; url: string } {
   return target.processType === ProcessType.RENDERER
 }
@@ -86,7 +86,7 @@ export function isRenderer(
  * Type guard: Check if target is a utility process
  */
 export function isUtilityProcess(
-  target: DirectIpcTarget,
+  target: DirectIpcTarget
 ): target is DirectIpcTarget & { pid: number } {
   return target.processType === ProcessType.UTILITY
 }

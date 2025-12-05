@@ -53,9 +53,7 @@ export abstract class DirectIpcBase<
   TIdentifierStrings extends string = string,
   TPort = MessagePort | Electron.MessagePortMain,
 > extends (EventEmitter as {
-  new <TMessageMap extends EventMap>(): Prettify<
-    TypedEventEmitter<WithSender<TMessageMap>>
-  >
+  new <TMessageMap extends EventMap>(): Prettify<TypedEventEmitter<WithSender<TMessageMap>>>
 })<TMessageMap> {
   // ===== PROTECTED STATE (accessible by subclasses) =====
 
@@ -115,10 +113,7 @@ export abstract class DirectIpcBase<
    * Set up message listener on a port
    * MessagePort uses onmessage, MessagePortMain uses on('message')
    */
-  protected abstract setupPortListener(
-    port: TPort,
-    handler: (data: unknown) => void
-  ): void
+  protected abstract setupPortListener(port: TPort, handler: (data: unknown) => void): void
 
   /**
    * Get or request a port for a target
@@ -134,9 +129,7 @@ export abstract class DirectIpcBase<
    * Find targets matching a selector
    * Returns array to support "allIdentifiers" and "allUrls" patterns
    */
-  protected abstract findTargets(
-    selector: TargetSelector<TIdentifierStrings>
-  ): DirectIpcTarget[]
+  protected abstract findTargets(selector: TargetSelector<TIdentifierStrings>): DirectIpcTarget[]
 
   /**
    * Clean up a port (to be called when target is removed)
@@ -190,10 +183,7 @@ export abstract class DirectIpcBase<
   /**
    * Emit target-added and target-removed events
    */
-  protected emitMapChanges(
-    oldMap: DirectIpcTarget[],
-    newMap: DirectIpcTarget[]
-  ): void {
+  protected emitMapChanges(oldMap: DirectIpcTarget[], newMap: DirectIpcTarget[]): void {
     const oldKeys = new Set(oldMap.map((t) => this.getPortCacheKey(t)))
     const newKeys = new Set(newMap.map((t) => this.getPortCacheKey(t)))
 
@@ -221,15 +211,11 @@ export abstract class DirectIpcBase<
   protected handleInvokeResponse(response: InvokeResponse): void {
     const { requestId, success, data, error } = response
 
-    this.log.silly?.(
-      'DirectIpcBase::handleInvokeResponse - handling response'
-    )
+    this.log.silly?.('DirectIpcBase::handleInvokeResponse - handling response')
 
     const pending = this.pendingInvokes.get(requestId)
     if (!pending) {
-      this.log.warn?.(
-        'DirectIpcBase::handleInvokeResponse - No pending request'
-      )
+      this.log.warn?.('DirectIpcBase::handleInvokeResponse - No pending request')
       return
     }
 
@@ -248,10 +234,7 @@ export abstract class DirectIpcBase<
   /**
    * Register a handler for invoke calls on a specific channel
    */
-  handle<T extends keyof TInvokeMap>(
-    channel: T,
-    handler: WithSender<TInvokeMap>[T]
-  ): void {
+  handle<T extends keyof TInvokeMap>(channel: T, handler: WithSender<TInvokeMap>[T]): void {
     this.log.silly?.('DirectIpcBase::handle - Registering handler for channel')
     if (this.handlers.has(channel as string)) {
       this.log.warn?.(
@@ -265,9 +248,7 @@ export abstract class DirectIpcBase<
    * Remove a handler for a specific channel
    */
   removeHandler<T extends keyof TInvokeMap>(channel: T): void {
-    this.log.silly?.(
-      `DirectIpcBase::removeHandler - Removing handler for ${channel as string}`
-    )
+    this.log.silly?.(`DirectIpcBase::removeHandler - Removing handler for ${channel as string}`)
     this.handlers.delete(channel as string)
   }
 

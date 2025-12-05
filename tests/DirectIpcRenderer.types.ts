@@ -11,11 +11,7 @@
  * errors, the tests pass. Runtime execution is not necessary.
  */
 
-import {
-  DirectIpcRenderer,
-  InvokeMap,
-  EventMap,
-} from '../src/renderer/DirectIpcRenderer'
+import { DirectIpcRenderer, InvokeMap, EventMap } from '../src/renderer/DirectIpcRenderer'
 import { DirectIpcTarget, ProcessType } from '../src/common/DirectIpcCommunication'
 
 // Define test message and invoke maps
@@ -31,11 +27,7 @@ type TestInvokeMap = {
 }
 
 // Create typed instance
-type TestDirectIpc = DirectIpcRenderer<
-  TestMessageMap,
-  TestInvokeMap,
-  'controller' | 'output'
->
+type TestDirectIpc = DirectIpcRenderer<TestMessageMap, TestInvokeMap, 'controller' | 'output'>
 
 // ============================================================================
 // Test DirectIpcEventMap events (no sender transformation)
@@ -206,11 +198,7 @@ function testOffMethod(directIpc: TestDirectIpc) {
   directIpc.localEvents.off('target-added', targetListener)
 
   // ✓ Should infer correct listener signature for TMessageMap
-  const messageListener = (
-    sender: DirectIpcTarget,
-    userId: string,
-    name: string
-  ) => {
+  const messageListener = (sender: DirectIpcTarget, userId: string, name: string) => {
     console.log(sender, userId, name)
   }
   directIpc.on('user-updated', messageListener)
@@ -293,11 +281,7 @@ function testEmptyEventMaps() {
 
 function testIdentifierConstraints() {
   type MyIdentifiers = 'controller' | 'output' | 'thumbnails'
-  const directIpc = DirectIpcRenderer._createInstance<
-    EventMap,
-    InvokeMap,
-    MyIdentifiers
-  >({
+  const directIpc = DirectIpcRenderer._createInstance<EventMap, InvokeMap, MyIdentifiers>({
     identifier: 'controller',
   })
 

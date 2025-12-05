@@ -3,7 +3,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { EventEmitter } from 'events'
 import { DirectIpcUtility, RegistrationState } from '../src/utility/DirectIpcUtility.js'
-import { DIRECT_IPC_CHANNELS, DirectIpcTarget, ProcessType } from '../src/common/DirectIpcCommunication.js'
+import {
+  DIRECT_IPC_CHANNELS,
+  DirectIpcTarget,
+  ProcessType,
+} from '../src/common/DirectIpcCommunication.js'
 
 // Mock process.parentPort
 const createMockParentPort = () => {
@@ -179,9 +183,9 @@ describe('DirectIpcUtility', () => {
         onmessage: null as any,
         start: vi.fn(),
         close: vi.fn(),
-      };
+      }
 
-      (utility as any).portCache.set('renderer-1', {
+      ;(utility as any).portCache.set('renderer-1', {
         port: mockPort,
         info: { identifier: 'renderer-1', webContentsId: 1, processType: ProcessType.RENDERER },
       })
