@@ -1,3 +1,9 @@
+## [2.0.3](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.2...v2.0.3) (2025-12-05)
+
+### Bug Fixes
+
+* 📄 trying to get docs right ([b9270f7](https://github.com/jjeff/electron-direct-ipc/commit/b9270f70b3b5c4bee22124ac86ac88dfac87730d))
+
 ## [2.0.2](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.1...v2.0.2) (2025-12-05)
 
 ### Bug Fixes
