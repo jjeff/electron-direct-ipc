@@ -1,3 +1,9 @@
+## [2.1.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.3...v2.1.0) (2025-12-05)
+
+### Features
+
+* Add VS Code development container configuration ([07a070b](https://github.com/jjeff/electron-direct-ipc/commit/07a070b0e8594fcb39b497b1ccc7ffa5808a4996))
+
 ## [2.0.3](https://github.com/jjeff/electron-direct-ipc/compare/v2.0.2...v2.0.3) (2025-12-05)
 
 ### Bug Fixes
