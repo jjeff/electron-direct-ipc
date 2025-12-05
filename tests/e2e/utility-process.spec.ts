@@ -70,18 +70,12 @@ test.describe('DirectIPC Utility Process Communication', () => {
     const win1 = windows['1'];
     expect(win1).toBeDefined();
 
-    // Wait a moment for utility process to register
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
     // Send a ping to utility process to verify it's registered
     await win1.evaluate(() => {
       (window as any).directIpc.util.sendPing();
     });
 
-    // Wait for response
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Verify we received status update from utility process
+    // Verify we received status update from utility process (Playwright auto-waits)
     const messages = win1.locator('#messages');
     await expect(messages).toContainText('[Utility] status-update from compute-worker');
     await expect(messages).toContainText('pong');
@@ -91,48 +85,12 @@ test.describe('DirectIPC Utility Process Communication', () => {
     const win1 = windows['1'];
     expect(win1).toBeDefined();
 
-    // Wait for renderer to fully subscribe and receive map updates
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Check what's in the map first
-    const mapInfo = await win1.evaluate(() => {
-      const map = (window as any).directIpc.getMap();
-      return {
-        mapSize: map.length,
-        processes: map.map((p: any) => ({
-          id: p.id,
-          identifier: p.identifier,
-          processType: p.processType,
-          webContentsId: p.webContentsId
-        }))
-      };
-    });
-
-    console.log('[E2E] Renderer map:', JSON.stringify(mapInfo, null, 2));
-
     // Send compute request to utility process
-    const result = await win1.evaluate(() => {
-      console.log('[TEST] About to call sendCompute(7)...');
-      try {
-        const promise = (window as any).directIpc.util.sendCompute(7);
-        console.log('[TEST] sendCompute returned:', promise);
-        return { success: true, isPromise: promise instanceof Promise };
-      } catch (err: any) {
-        console.error('[TEST] Error calling sendCompute:', err);
-        return { success: false, error: err.message || String(err) };
-      }
+    await win1.evaluate(() => {
+      (window as any).directIpc.util.sendCompute(7);
     });
 
-    console.log('[E2E] sendCompute result:', result);
-
-    if (!result.success) {
-      throw new Error(`Failed to call sendCompute: ${result.error}`);
-    }
-
-    // Wait for utility process to compute and respond
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Verify we received the computed result (7 * 7 = 49)
+    // Verify we received the computed result (7 * 7 = 49) - Playwright auto-waits
     const messages = win1.locator('#messages');
     await expect(messages).toContainText('[Utility] compute-result from compute-worker');
     await expect(messages).toContainText('49');
@@ -147,10 +105,7 @@ test.describe('DirectIPC Utility Process Communication', () => {
       (window as any).directIpc.util.sendPing();
     });
 
-    // Wait for status update
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Verify we received status update
+    // Verify we received status update - Playwright auto-waits
     const messages = win2.locator('#messages');
     await expect(messages).toContainText('[Utility] status-update from compute-worker');
   });
@@ -168,10 +123,7 @@ test.describe('DirectIPC Utility Process Communication', () => {
       (window as any).directIpc.util.sendCompute(5);
     });
 
-    // Wait for responses
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // Verify we received both results
+    // Verify we received both results - Playwright auto-waits
     const messages = win1.locator('#messages');
     await expect(messages).toContainText('9'); // 3 * 3
     await expect(messages).toContainText('25'); // 5 * 5
@@ -252,18 +204,19 @@ test.describe('DirectIPC Utility Process Communication', () => {
     expect(result).toBe('Completed after 100ms');
   });
 
-  test('should receive periodic status updates from utility process', async () => {
+  test('should receive broadcast status updates from utility process', async () => {
     const win1 = windows['1'];
     expect(win1).toBeDefined();
 
     // Clear messages
     await win1.getByRole('button', { name: 'Clear Messages' }).click();
 
-    // Wait for at least one periodic status update (sent every 5 seconds)
-    // We'll wait 6 seconds to ensure we get one
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    // Trigger an on-demand broadcast instead of waiting 5+ seconds for periodic update
+    await win1.evaluate(async () => {
+      await (window as any).directIpc.util.broadcastStatus();
+    });
 
-    // Verify we received a periodic status update
+    // Verify we received the status update - Playwright auto-waits
     const messages = win1.locator('#messages');
     await expect(messages).toContainText('[Utility] status-update from compute-worker');
     await expect(messages).toContainText('alive');
@@ -288,10 +241,7 @@ test.describe('DirectIPC Utility Process Communication', () => {
       (window as any).directIpc.util.sendCompute(6);
     });
 
-    // Wait for responses
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // Verify each window received its own result
+    // Verify each window received its own result - Playwright auto-waits
     const messages1 = win1.locator('#messages');
     const messages2 = win2.locator('#messages');
 
@@ -329,10 +279,6 @@ test.describe('DirectIPC Utility Process Communication', () => {
 
     // The handler returns the result of postMessage, which should be undefined (void)
     expect(response).toBeUndefined();
-
-    // Wait a moment for the message to be processed
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
     // We can't directly verify the utility process received it in this test,
     // but the test ensures the postMessage API works without errors
   });
@@ -392,5 +338,190 @@ test.describe('DirectIPC Utility Process Communication', () => {
 
     // Verify all results are correct
     expect(results).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+});
+
+test.describe('DirectIPC Utility Process Throttled Communication', () => {
+  test.beforeEach(async () => {
+    // Clear messages and reset throttled stats before each test
+    const win1 = windows['1'];
+    const win2 = windows['2'];
+
+    if (win1) {
+      await win1.getByRole('button', { name: 'Clear Messages' }).click();
+      await win1.evaluate(async () => {
+        await (window as any).directIpc.util.resetThrottledStats();
+        (window as any).directIpc.testing.resetThrottledProgressReceived();
+      });
+    }
+    if (win2) {
+      await win2.getByRole('button', { name: 'Clear Messages' }).click();
+      await win2.evaluate(async () => {
+        await (window as any).directIpc.util.resetThrottledStats();
+        (window as any).directIpc.testing.resetThrottledProgressReceived();
+      });
+    }
+  });
+
+  test('should coalesce high-frequency throttled sends from renderer to utility', async () => {
+    const win1 = windows['1'];
+    expect(win1).toBeDefined();
+
+    // Reset stats
+    await win1.evaluate(async () => {
+      await (window as any).directIpc.util.resetThrottledStats();
+    });
+
+    // Send many rapid throttled position updates
+    await win1.evaluate(() => {
+      for (let i = 0; i < 100; i++) {
+        (window as any).directIpc.util.sendThrottledPosition(i, i * 2);
+      }
+    });
+
+    // Wait for microtask to flush (100ms is plenty for coalescing to complete)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Get stats from utility process
+    const stats = await win1.evaluate(async () => {
+      return await (window as any).directIpc.util.invokeThrottledStats();
+    });
+
+    // Due to throttling, utility should have received far fewer than 100 messages
+    console.log(`[E2E] Throttled stats: received ${stats.receiveCount} messages, last position: (${stats.lastPosition.x}, ${stats.lastPosition.y})`);
+
+    // The last position should be the final one sent (99, 198)
+    expect(stats.lastPosition.x).toBe(99);
+    expect(stats.lastPosition.y).toBe(198);
+
+    // Should have received significantly fewer messages than sent (coalescing working)
+    expect(stats.receiveCount).toBeLessThan(50);
+  });
+
+  test('should coalesce high-frequency throttled sends from utility to renderer', async () => {
+    const win1 = windows['1'];
+    expect(win1).toBeDefined();
+
+    // Clear the received progress array (using contextBridge exposed method) and messages
+    await win1.getByRole('button', { name: 'Clear Messages' }).click();
+    await win1.evaluate(() => {
+      (window as any).directIpc.testing.resetThrottledProgressReceived();
+    });
+
+    // Ask utility to send 100 rapid throttled progress updates
+    await win1.evaluate(async () => {
+      await (window as any).directIpc.util.requestThrottledProgress(100);
+    });
+
+    // Wait for the message to appear in the DOM (this confirms the message arrived and was processed)
+    const messages = win1.locator('#messages');
+    await expect(messages).toContainText('[Utility Throttled] throttled-progress', { timeout: 5000 });
+
+    // Small additional wait to ensure array is updated
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Check what the renderer received (using contextBridge exposed method)
+    const received = await win1.evaluate(() => {
+      return (window as any).directIpc.testing.getThrottledProgressReceived();
+    });
+
+    console.log(`[E2E] Renderer received ${received.length} throttled progress messages:`, received);
+
+    // Due to throttling, renderer should have received far fewer than 100 messages
+    // Should have at least 1 message (the coalesced final one)
+    expect(received.length).toBeGreaterThan(0);
+    expect(received.length).toBeLessThan(50);
+    // The last message should be 100% (the final value)
+    expect(received[received.length - 1]).toBe(100);
+  });
+
+  test('should handle throttled messages from multiple renderers to utility', async () => {
+    const win1 = windows['1'];
+    const win2 = windows['2'];
+
+    expect(win1).toBeDefined();
+    expect(win2).toBeDefined();
+
+    // Reset stats
+    await win1.evaluate(async () => {
+      await (window as any).directIpc.util.resetThrottledStats();
+    });
+
+    // Send throttled messages from both windows concurrently
+    await Promise.all([
+      win1.evaluate(() => {
+        for (let i = 0; i < 50; i++) {
+          (window as any).directIpc.util.sendThrottledPosition(i, 1000);
+        }
+      }),
+      win2.evaluate(() => {
+        for (let i = 0; i < 50; i++) {
+          (window as any).directIpc.util.sendThrottledPosition(i, 2000);
+        }
+      }),
+    ]);
+
+    // Wait for microtask to flush (100ms is plenty)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Get stats - should have received coalesced messages from both senders
+    const stats = await win1.evaluate(async () => {
+      return await (window as any).directIpc.util.invokeThrottledStats();
+    });
+
+    console.log(`[E2E] Multi-renderer throttled stats: received ${stats.receiveCount} messages`);
+
+    // Should have received messages (coalesced)
+    expect(stats.receiveCount).toBeGreaterThan(0);
+    expect(stats.receiveCount).toBeLessThan(100); // Far fewer than 100 total sent
+
+    // Last position should be from one of the final sends (49, 1000 or 49, 2000)
+    expect(stats.lastPosition.x).toBe(49);
+    expect([1000, 2000]).toContain(stats.lastPosition.y);
+  });
+
+  test('should not affect non-throttled utility messages when using throttled', async () => {
+    const win1 = windows['1'];
+    expect(win1).toBeDefined();
+
+    // Clear messages
+    await win1.getByRole('button', { name: 'Clear Messages' }).click();
+
+    // Send both throttled and non-throttled messages
+    await win1.evaluate(() => {
+      // Throttled - should coalesce
+      for (let i = 0; i < 10; i++) {
+        (window as any).directIpc.util.sendThrottledPosition(i, i);
+      }
+      // Non-throttled - each should trigger a response
+      (window as any).directIpc.util.sendCompute(3);
+      (window as any).directIpc.util.sendCompute(5);
+    });
+
+    // Verify non-throttled messages all arrived - Playwright auto-waits
+    const messages = win1.locator('#messages');
+    await expect(messages).toContainText('9'); // 3 * 3
+    await expect(messages).toContainText('25'); // 5 * 5
+  });
+
+  test('should expose throttled property on utility DirectIpc instance', async () => {
+    const win1 = windows['1'];
+    expect(win1).toBeDefined();
+
+    // Verify that the throttled API methods exist
+    const hasThrottledMethods = await win1.evaluate(() => {
+      const util = (window as any).directIpc.util;
+      return {
+        hasSendThrottledPosition: typeof util.sendThrottledPosition === 'function',
+        hasInvokeThrottledStats: typeof util.invokeThrottledStats === 'function',
+        hasResetThrottledStats: typeof util.resetThrottledStats === 'function',
+        hasRequestThrottledProgress: typeof util.requestThrottledProgress === 'function',
+      };
+    });
+
+    expect(hasThrottledMethods.hasSendThrottledPosition).toBe(true);
+    expect(hasThrottledMethods.hasInvokeThrottledStats).toBe(true);
+    expect(hasThrottledMethods.hasResetThrottledStats).toBe(true);
+    expect(hasThrottledMethods.hasRequestThrottledProgress).toBe(true);
   });
 });

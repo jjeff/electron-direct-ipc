@@ -21,6 +21,7 @@ import {
   DirectIpcLogger,
   consoleLogger,
 } from '../common/DirectIpcLogger.js'
+import { DirectIpcUtilityThrottled } from './DirectIpcUtilityThrottled.js'
 
 // Electron provides process.parentPort in utility processes
 // The type is available via @types/node
@@ -141,8 +142,22 @@ export class DirectIpcUtility<
   /** Message queue for messages sent before registration completes */
   private messageQueue: QueuedMessage[] = []
 
-  /** Throttled messaging interface (to be implemented) */
-  public readonly throttled: unknown // TODO: Implement DirectIpcUtilityThrottled
+  /**
+   * Throttled message sending/receiving for high-frequency updates.
+   * Use this for lossy communication where only the latest value matters.
+   *
+   * @example
+   * // High-frequency position updates (throttled)
+   * directIpc.throttled.send({ identifier: 'renderer' }, 'position-update', x, y)
+   *
+   * // Important events (not throttled)
+   * directIpc.send({ identifier: 'renderer' }, 'button-clicked')
+   */
+  public readonly throttled: DirectIpcUtilityThrottled<
+    TMessageMap,
+    TInvokeMap,
+    TIdentifierStrings
+  >
 
   constructor(options?: DirectIpcUtilityOptions<TIdentifierStrings>) {
     super()
@@ -153,6 +168,9 @@ export class DirectIpcUtility<
     }
     this.defaultTimeout = options?.defaultTimeout ?? 30000
     this.registrationTimeout = options?.registrationTimeout ?? 5000
+
+    // Initialize throttled wrapper
+    this.throttled = new DirectIpcUtilityThrottled(this, { log: this.log })
 
     // Start registration process
     this.initializeRegistration()

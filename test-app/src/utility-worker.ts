@@ -14,12 +14,21 @@ type WorkerMessageMap = {
   'compute-request': (data: number) => void;
   'ping': () => void;
   'status-update': (status: string, timestamp: number) => void;
+  // Throttled messages
+  'throttled-position': (x: number, y: number) => void;
+  'throttled-progress': (percent: number) => void;
 };
 
 type WorkerInvokeMap = {
   'heavy-computation': (numbers: number[]) => Promise<number>;
   'get-stats': () => Promise<{ uptime: number; processed: number }>;
   'slow-operation': (delay: number) => Promise<string>;
+  // Throttled testing handlers
+  'get-throttled-stats': () => Promise<{ lastPosition: { x: number; y: number }; receiveCount: number }>;
+  'reset-throttled-stats': () => Promise<boolean>;
+  'send-throttled-progress': (count: number) => Promise<number>;
+  // E2E testing handler - trigger broadcast on demand
+  'broadcast-status': () => Promise<boolean>;
 };
 
 // Create DirectIpcUtility instance with identifier
@@ -93,6 +102,68 @@ utility.handle('slow-operation', async (sender, delay: number) => {
 
   await new Promise(resolve => setTimeout(resolve, delay));
   return `Completed after ${delay}ms`;
+});
+
+// ============================================================================
+// Throttled message handling
+// ============================================================================
+
+// Track received throttled positions for testing
+let lastReceivedPosition = { x: -1, y: -1 };
+let throttledPositionReceiveCount = 0;
+
+// Listen for throttled position updates from renderers (using throttled receiver)
+utility.throttled.on('throttled-position', (sender, x, y) => {
+  throttledPositionReceiveCount++;
+  lastReceivedPosition = { x, y };
+  console.log(`[Utility Worker] [Throttled] Received position update from ${sender.identifier}: x=${x}, y=${y} (total received: ${throttledPositionReceiveCount})`);
+});
+
+// Handle request to get throttled stats (for E2E verification)
+utility.handle('get-throttled-stats', async () => {
+  return {
+    lastPosition: lastReceivedPosition,
+    receiveCount: throttledPositionReceiveCount,
+  };
+});
+
+// Handle request to reset throttled stats
+utility.handle('reset-throttled-stats', async () => {
+  lastReceivedPosition = { x: -1, y: -1 };
+  throttledPositionReceiveCount = 0;
+  console.log('[Utility Worker] Throttled stats reset');
+  return true;
+});
+
+// Handle request to send throttled progress updates to a renderer
+utility.handle('send-throttled-progress', async (sender, count: number) => {
+  console.log(`[Utility Worker] Sending ${count} throttled progress updates to ${sender.identifier}`);
+
+  // Send many rapid throttled updates - only the last should arrive
+  for (let i = 0; i <= count; i++) {
+    const percent = Math.round((i / count) * 100);
+    if (sender.identifier) {
+      utility.throttled.send({ identifier: sender.identifier }, 'throttled-progress', percent);
+    } else if (sender.webContentsId) {
+      utility.throttled.send({ webContentsId: sender.webContentsId }, 'throttled-progress', percent);
+    }
+  }
+
+  // Wait for microtask to flush the throttled sends before returning
+  await new Promise(resolve => queueMicrotask(() => resolve(undefined)));
+  // Add a small delay to ensure messages are delivered
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  return count;
+});
+
+// Handle request to broadcast status to all renderers (for E2E testing without waiting for periodic interval)
+utility.handle('broadcast-status', async () => {
+  console.log('[Utility Worker] Broadcasting status on demand');
+  const uptime = Math.floor((Date.now() - startTime) / 1000);
+  await utility.send({ allIdentifiers: /.*/ }, 'status-update', `alive (${processedCount} processed)`, Date.now());
+  console.log(`[Utility Worker] On-demand status broadcast complete - uptime: ${uptime}s`);
+  return true;
 });
 
 // Send periodic status updates to all renderers
