@@ -1,3 +1,17 @@
+## [2.0.0](https://github.com/jjeff/electron-direct-ipc/compare/v1.0.6...v2.0.0) (2025-12-05)
+
+### ⚠ BREAKING CHANGES
+
+* Utility Process support
+
+### Features
+
+* Utility Process support ([60f7a6f](https://github.com/jjeff/electron-direct-ipc/commit/60f7a6f27bc8b7c857a32515b491bb3c44af5c82))
+
+### Bug Fixes
+
+* update Node.js version to 24.x in CI and release workflows, add conventional-changelog-conventionalcommits dependency ([a7fce90](https://github.com/jjeff/electron-direct-ipc/commit/a7fce90f99a67f26e132798f7ab22ec923a9c519))
+
 ## <small>1.0.6 (2025-12-04)</small>
 
 * docs: tweaks ([1807f53](https://github.com/jjeff/electron-direct-ipc/commit/1807f53))
