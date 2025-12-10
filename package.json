@@ -1,6 +1,6 @@
 {
   "name": "electron-direct-ipc",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "nudge": "1",
   "description": "Type-safe, high-performance inter-process communication for Electron applications.",
   "main": "dist/cjs/main/DirectIpcMain.js",
@@ -40,11 +40,21 @@
   },
   "typesVersions": {
     "*": {
-      "main": ["dist/cjs/main/DirectIpcMain.d.ts"],
-      "renderer": ["dist/cjs/renderer/DirectIpcRenderer.d.ts"],
-      "renderer/throttled": ["dist/cjs/renderer/DirectIpcThrottled.d.ts"],
-      "common": ["dist/cjs/common/DirectIpcCommunication.d.ts"],
-      "utility": ["dist/cjs/utility/index.d.ts"]
+      "main": [
+        "dist/cjs/main/DirectIpcMain.d.ts"
+      ],
+      "renderer": [
+        "dist/cjs/renderer/DirectIpcRenderer.d.ts"
+      ],
+      "renderer/throttled": [
+        "dist/cjs/renderer/DirectIpcThrottled.d.ts"
+      ],
+      "common": [
+        "dist/cjs/common/DirectIpcCommunication.d.ts"
+      ],
+      "utility": [
+        "dist/cjs/utility/index.d.ts"
+      ]
     }
   },
   "files": [

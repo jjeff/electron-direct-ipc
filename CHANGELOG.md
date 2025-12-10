@@ -1,3 +1,9 @@
+## [2.2.2](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.1...v2.2.2) (2025-12-10)
+
+### Bug Fixes
+
+* add typesVersions for legacy TypeScript moduleResolution compatibility ([307d533](https://github.com/jjeff/electron-direct-ipc/commit/307d533b1fbbf196e21d24a422dc07a7441fd61c))
+
 ## [2.2.1](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.0...v2.2.1) (2025-12-05)
 
 ### Bug Fixes
