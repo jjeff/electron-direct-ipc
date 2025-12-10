@@ -38,6 +38,15 @@
       "types": "./dist/esm/utility/index.d.ts"
     }
   },
+  "typesVersions": {
+    "*": {
+      "main": ["dist/cjs/main/DirectIpcMain.d.ts"],
+      "renderer": ["dist/cjs/renderer/DirectIpcRenderer.d.ts"],
+      "renderer/throttled": ["dist/cjs/renderer/DirectIpcThrottled.d.ts"],
+      "common": ["dist/cjs/common/DirectIpcCommunication.d.ts"],
+      "utility": ["dist/cjs/utility/index.d.ts"]
+    }
+  },
   "files": [
     "dist/"
   ],
