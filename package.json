@@ -41,16 +41,16 @@
   "typesVersions": {
     "*": {
       "main": [
-        "dist/cjs/main/DirectIpcMain.d.ts"
+        "dist/cjs/main/index.d.ts"
       ],
       "renderer": [
-        "dist/cjs/renderer/DirectIpcRenderer.d.ts"
+        "dist/cjs/renderer/index.d.ts"
       ],
       "renderer/throttled": [
         "dist/cjs/renderer/DirectIpcThrottled.d.ts"
       ],
       "common": [
-        "dist/cjs/common/DirectIpcCommunication.d.ts"
+        "dist/cjs/common/index.d.ts"
       ],
       "utility": [
         "dist/cjs/utility/index.d.ts"
