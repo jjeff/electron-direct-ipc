@@ -1,3 +1,9 @@
+## [2.2.3](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.2...v2.2.3) (2025-12-10)
+
+### Bug Fixes
+
+* typesVersions should point to index.d.ts files for complete type exports ([b0ea398](https://github.com/jjeff/electron-direct-ipc/commit/b0ea39812a3965150e806a8f0bcb6228a9190f67))
+
 ## [2.2.2](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.1...v2.2.2) (2025-12-10)
 
 ### Bug Fixes
