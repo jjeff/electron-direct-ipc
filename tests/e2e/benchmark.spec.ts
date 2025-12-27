@@ -14,11 +14,7 @@
  * Run with: npm run test:e2e:benchmark
  */
 import { _electron as electron, ElectronApplication, expect, Page, test } from '@playwright/test'
-import * as path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { launchElectron, waitForWindows, getElectronLaunchArgs, getTestAppPath } from './electron-launch.js'
 
 interface BenchmarkResult {
   name: string
@@ -30,7 +26,7 @@ interface BenchmarkResult {
   messagesDelivered?: number
 }
 
-const windows: { [key: string]: Page } = {}
+let windows: Record<string, Page> = {}
 let app: ElectronApplication
 
 // Performance thresholds (generous to avoid CI flakiness)
@@ -49,35 +45,11 @@ const THRESHOLDS = {
 
 test.describe('DirectIPC Benchmarks', () => {
   test.beforeAll(async () => {
-    // Launch Electron with the test-app main file
-    const testAppPath = path.join(__dirname, '../../test-app/dist/main.js')
-
-    const launchArgs = [testAppPath]
-    if (process.env.CI) {
-      launchArgs.push('--no-sandbox', '--disable-dev-shm-usage')
-    }
-
-    app = await electron.launch({
-      args: launchArgs,
-    })
-
-    app.on('window', async (page) => {
-      const winId = await page.evaluate(() => (window as any).windowId)
-      console.log(`Detected window with ID: ${winId}`)
-      if (winId) {
-        windows[winId] = page
-      }
-    })
-
-    const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout waiting for windows')), 10000)
-    )
-    const windowsReadyPromise = (async () => {
-      while (Object.keys(windows).length < 2) {
-        await new Promise((r) => setTimeout(r, 100))
-      }
-    })()
-    await Promise.race([timeoutPromise, windowsReadyPromise])
+    console.log('Starting Electron app for benchmark tests...')
+    app = await launchElectron()
+    console.log('Electron app launched, waiting for windows...')
+    windows = await waitForWindows(app, 2)
+    console.log(`Windows ready: ${Object.keys(windows).join(', ')}`)
   })
 
   test.afterAll(async () => {
@@ -259,15 +231,13 @@ test.describe('DirectIPC Benchmarks', () => {
 test.describe('DirectIPC Connection Benchmarks', () => {
   // This test requires its own app instance to measure connection time
   test('benchmark: new renderer connection time', async () => {
-    const testAppPath = path.join(__dirname, '../../test-app/dist/main.js')
+    const testAppPath = getTestAppPath()
+    const launchArgs = getElectronLaunchArgs(testAppPath)
 
-    const launchArgs = [testAppPath]
-    if (process.env.CI) {
-      launchArgs.push('--no-sandbox', '--disable-dev-shm-usage')
-    }
-
+    console.log('Launching new Electron app for connection benchmark...')
     const newApp = await electron.launch({
       args: launchArgs,
+      timeout: process.env.CI ? 60_000 : 30_000,
     })
 
     const newWindows: { [key: string]: Page } = {}
@@ -277,21 +247,26 @@ test.describe('DirectIPC Connection Benchmarks', () => {
     const windowCreationStart = performance.now()
 
     newApp.on('window', async (page) => {
-      const winId = await page.evaluate(() => (window as any).windowId)
-      if (winId) {
-        newWindows[winId] = page
-        if (Object.keys(newWindows).length === 2) {
-          connectionCompleteTime = performance.now() - windowCreationStart
+      try {
+        const winId = await page.evaluate(() => (window as any).windowId)
+        if (winId) {
+          newWindows[winId] = page
+          if (Object.keys(newWindows).length === 2) {
+            connectionCompleteTime = performance.now() - windowCreationStart
+          }
         }
+      } catch (e) {
+        console.log('Failed to get window ID:', e)
       }
     })
 
-    // Wait for both windows to be ready
+    // Wait for both windows to be ready with longer timeout for CI
+    const timeout = process.env.CI ? 60_000 : 10_000
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Timeout')), 10000)
+      const timeoutId = setTimeout(() => reject(new Error(`Timeout after ${timeout}ms`)), timeout)
       const check = setInterval(() => {
         if (Object.keys(newWindows).length >= 2) {
-          clearTimeout(timeout)
+          clearTimeout(timeoutId)
           clearInterval(check)
           resolve()
         }
@@ -332,35 +307,11 @@ test.describe('DirectIPC vs Traditional IPC Comparison', () => {
     // Clear windows from previous test suites
     Object.keys(windows).forEach((key) => delete windows[key])
 
-    // Launch Electron with the test-app main file
-    const testAppPath = path.join(__dirname, '../../test-app/dist/main.js')
-
-    const launchArgs = [testAppPath]
-    if (process.env.CI) {
-      launchArgs.push('--no-sandbox', '--disable-dev-shm-usage')
-    }
-
-    app = await electron.launch({
-      args: launchArgs,
-    })
-
-    app.on('window', async (page) => {
-      const winId = await page.evaluate(() => (window as any).windowId)
-      console.log(`Detected window with ID: ${winId}`)
-      if (winId) {
-        windows[winId] = page
-      }
-    })
-
-    const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout waiting for windows')), 10000)
-    )
-    const windowsReadyPromise = (async () => {
-      while (Object.keys(windows).length < 2) {
-        await new Promise((r) => setTimeout(r, 100))
-      }
-    })()
-    await Promise.race([timeoutPromise, windowsReadyPromise])
+    console.log('Starting Electron app for IPC comparison tests...')
+    app = await launchElectron()
+    console.log('Electron app launched, waiting for windows...')
+    windows = await waitForWindows(app, 2)
+    console.log(`Windows ready: ${Object.keys(windows).join(', ')}`)
   })
 
   test.afterAll(async () => {

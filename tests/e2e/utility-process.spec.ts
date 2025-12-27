@@ -1,49 +1,16 @@
-import { _electron as electron, ElectronApplication, expect, Page, test } from '@playwright/test'
-import * as path from 'path'
-import { fileURLToPath } from 'url'
+import { ElectronApplication, expect, Page, test } from '@playwright/test'
 import { ipcMainInvokeHandler } from 'electron-playwright-helpers'
+import { launchElectron, waitForWindows } from './electron-launch.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-const windows: { [key: string]: Page } = {}
+let windows: Record<string, Page> = {}
 let app: ElectronApplication
 
 test.beforeAll(async () => {
-  // Launch Electron with the test-app main file
-  const testAppPath = path.join(__dirname, '../../test-app/dist/main.js')
-
-  // Add flags for CI environments (required for Linux runners)
-  const launchArgs = [testAppPath]
-  if (process.env.CI) {
-    launchArgs.push('--no-sandbox', '--disable-dev-shm-usage')
-  }
-
-  app = await electron.launch({
-    args: launchArgs,
-  })
-
-  // Collect windows as they're created
-  app.on('window', async (page) => {
-    const winId = await page.evaluate(() => (window as any).windowId)
-    console.log(`[E2E] Detected window with ID: ${winId}`)
-    if (winId) {
-      windows[winId] = page
-    }
-  })
-
-  // Wait for both windows to be ready
-  const timeoutPromise = new Promise<void>((_, reject) =>
-    setTimeout(() => reject(new Error('Timeout waiting for windows')), 10000)
-  )
-  const windowsReadyPromise = (async () => {
-    while (Object.keys(windows).length < 2) {
-      await new Promise((r) => setTimeout(r, 100))
-    }
-  })()
-  await Promise.race([timeoutPromise, windowsReadyPromise])
-
-  console.log('[E2E] Both windows ready')
+  console.log('[E2E] Starting Electron app for utility process tests...')
+  app = await launchElectron()
+  console.log('[E2E] Electron app launched, waiting for windows...')
+  windows = await waitForWindows(app, 2)
+  console.log(`[E2E] Windows ready: ${Object.keys(windows).join(', ')}`)
 })
 
 test.afterAll(async () => {
