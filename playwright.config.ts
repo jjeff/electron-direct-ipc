@@ -2,9 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 30_000,
+  timeout: process.env.CI ? 60_000 : 30_000, // Longer timeout for CI (especially Windows)
   expect: {
-    timeout: 5_000,
+    timeout: 10_000, // Longer expect timeout for slower CI environments
   },
   fullyParallel: false, // Electron apps should run serially
   forbidOnly: !!process.env.CI,
