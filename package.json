@@ -65,7 +65,7 @@
     "build": "npm run build:esm && npm run build:cjs && npm run build:pkg",
     "build:esm": "tsc",
     "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:pkg": "echo '{\"type\":\"module\"}' > dist/esm/package.json && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
+    "build:pkg": "node scripts/write-package-types.js",
     "build:e2e": "npm run build && cd test-app && npm install && npm run build",
     "e2e": "npm run build && cd test-app && npm install && npm run start",
     "lint": "eslint \"src/**/*.ts\"",
