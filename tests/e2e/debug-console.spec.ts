@@ -1,21 +1,18 @@
 import { test, expect, _electron as electron } from '@playwright/test'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { getElectronLaunchArgs, getTestAppPath } from './electron-launch.js'
 
 test.describe('Debug Console Output', () => {
   test('capture console logs from main and utility processes', async () => {
     const logs: string[] = []
 
-    // Launch Electron app
+    // Launch Electron app with proper CI flags
+    const testAppPath = getTestAppPath()
+    const launchArgs = getElectronLaunchArgs(testAppPath)
+
+    console.log('Launching Electron app for debug console test...')
     const app = await electron.launch({
-      args: [
-        '--no-sandbox', // Required for CI environments
-        '--disable-dev-shm-usage', // Prevent shared memory issues in Docker/CI
-        path.join(__dirname, '../../test-app/dist/main.js'),
-      ],
+      args: launchArgs,
+      timeout: process.env.CI ? 60_000 : 30_000,
     })
 
     // Capture console output from main process

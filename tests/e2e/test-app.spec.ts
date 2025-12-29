@@ -1,45 +1,15 @@
-import { _electron as electron, ElectronApplication, expect, Page, test } from '@playwright/test'
-import * as path from 'path'
-import { fileURLToPath } from 'url'
+import { ElectronApplication, expect, Page, test } from '@playwright/test'
+import { launchElectron, waitForWindows } from './electron-launch.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-const windows: { [key: string]: Page } = {}
+let windows: Record<string, Page> = {}
 let app: ElectronApplication
 
 test.beforeAll(async () => {
-  // Launch Electron with the test-app main file
-  const testAppPath = path.join(__dirname, '../../test-app/dist/main.js')
-
-  // Add flags for CI environments (required for Linux runners)
-  const launchArgs = [testAppPath]
-  if (process.env.CI) {
-    launchArgs.push('--no-sandbox', '--disable-dev-shm-usage')
-  }
-
-  app = await electron.launch({
-    args: launchArgs,
-  })
-
-  app.on('window', async (page) => {
-    const winId = await page.evaluate(() => (window as any).windowId)
-    console.log(`Detected window with ID: ${winId}`)
-    if (winId) {
-      windows[winId] = page
-    }
-  })
-
-  const timeoutPromise = new Promise<void>((_, reject) =>
-    setTimeout(() => reject(new Error('Timeout waiting for windows')), 10000)
-  )
-  // Wait for both windows to be ready
-  const windowsReadyPromise = (async () => {
-    while (Object.keys(windows).length < 2) {
-      await new Promise((r) => setTimeout(r, 100))
-    }
-  })()
-  await Promise.race([timeoutPromise, windowsReadyPromise])
+  console.log('Starting Electron app for test-app.spec.ts...')
+  app = await launchElectron()
+  console.log('Electron app launched, waiting for windows...')
+  windows = await waitForWindows(app, 2)
+  console.log(`Windows ready: ${Object.keys(windows).join(', ')}`)
 })
 
 test.afterAll(async () => {
