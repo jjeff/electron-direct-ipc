@@ -1,3 +1,16 @@
+## [2.3.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.3...v2.3.0) (2025-12-30)
+
+### Features
+
+* lower minimum Node.js version requirement to 18.0.0 and add Electron peer dependency ([64642e6](https://github.com/jjeff/electron-direct-ipc/commit/64642e69831fd3036c638d24610682f7a1dbaec9))
+
+### Bug Fixes
+
+* improve E2E test reliability on Windows CI ([0ba43b7](https://github.com/jjeff/electron-direct-ipc/commit/0ba43b7363d0388e0b289d64a22332938ebad933))
+* increase Playwright timeout for CI environments ([f9cc080](https://github.com/jjeff/electron-direct-ipc/commit/f9cc0802aff0847aefa1fec14607e69818701b5e))
+* update Node.js to 22 for semantic-release and remove redundant CI trigger ([a59e5cf](https://github.com/jjeff/electron-direct-ipc/commit/a59e5cf7797899f6abff7e5446fc84be969d14c5))
+* use cross-platform Node script for ESM/CJS package.json generation ([f40a288](https://github.com/jjeff/electron-direct-ipc/commit/f40a28834f1d50b2f0db28f59bbee3ceac8ebc26))
+
 ## [2.2.3](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.2...v2.2.3) (2025-12-10)
 
 ### Bug Fixes
