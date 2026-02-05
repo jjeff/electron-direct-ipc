@@ -241,21 +241,24 @@ export function extractTransferables(message: unknown): Transferable[] {
     if (isSharedArrayBuffer(obj)) return
 
     // Scan typed arrays for their underlying buffer
-    if (ArrayBuffer.isView(obj) && obj.buffer instanceof ArrayBuffer) {
-      transferables.push(obj.buffer)
+    if (ArrayBuffer.isView(obj)) {
+      const view = obj as ArrayBufferView
+      if (view.buffer instanceof ArrayBuffer) {
+        transferables.push(view.buffer)
+      }
       return
     }
 
     // Recursively scan arrays
     if (Array.isArray(obj)) {
-      for (const item of obj) {
+      for (const item of obj as unknown[]) {
         scan(item)
       }
       return
     }
 
     // Recursively scan object properties
-    for (const key of Object.keys(obj)) {
+    for (const key of Object.keys(obj as object)) {
       scan((obj as Record<string, unknown>)[key])
     }
   }

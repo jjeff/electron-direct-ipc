@@ -564,14 +564,17 @@ export class DirectIpcUtility<
       this.log.debug?.(
         `DirectIpcUtility::send - Queuing message "${String(message)}" (state: ${this.registrationState})`
       )
-      this.messageQueue.push({
+      const queuedMessage: QueuedMessage = {
         target,
         message: String(message),
         args,
         throttled: false,
         timestamp: Date.now(),
-        transfer: options?.transfer,
-      })
+      }
+      if (options?.transfer) {
+        queuedMessage.transfer = options.transfer
+      }
+      this.messageQueue.push(queuedMessage)
       return
     }
 
@@ -623,7 +626,7 @@ export class DirectIpcUtility<
   private async sendToTarget<K extends keyof TMessageMap>(
     target: DirectIpcTarget,
     message: K,
-    args: Parameters<TMessageMap[K]>,
+    args: unknown[],
     transfer?: Transferable[]
   ): Promise<void> {
     const targetId = this.getPortCacheKey(target)

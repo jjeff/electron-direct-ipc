@@ -156,8 +156,7 @@ export abstract class DirectIpcBase<
   public abstract send<T extends keyof TMessageMap>(
     target: TargetSelector<TIdentifierStrings>,
     message: T,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 'any' used in conditional type for parameter extraction
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
+    ...args: unknown[]
   ): Promise<void>
 
   /**
