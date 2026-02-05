@@ -569,6 +569,128 @@ describe('DirectIpcRenderer', () => {
     })
   })
 
+  describe('ArrayBuffer transfer support', () => {
+    it('should send message with transfer list', async () => {
+      const mockPort = createMockMessagePort()
+
+      // Get the port message listener
+      const portMessageListener = mockIpcRenderer.on.mock.calls.find(
+        (call: any[]) => call[0] === DIRECT_IPC_CHANNELS.PORT_MESSAGE
+      )?.[1]
+
+      // Start the send with transfer
+      const buffer = new ArrayBuffer(1024)
+      const sendPromise = directIpc.send(
+        { identifier: 'target' },
+        'buffer-message',
+        buffer,
+        { transfer: [buffer] }
+      )
+
+      // Simulate port arrival
+      portMessageListener(
+        { ports: [mockPort] },
+        {
+          sender: {
+            id: 10,
+            webContentsId: 10,
+            url: 'https://target.com',
+            identifier: 'target',
+            processType: 'renderer',
+          },
+        }
+      )
+
+      await sendPromise
+
+      // Verify postMessage was called with transfer list
+      expect(mockPort.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'buffer-message',
+        }),
+        [buffer]
+      )
+    })
+
+    it('should send message with SharedArrayBuffer (no transfer needed)', async () => {
+      const mockPort = createMockMessagePort()
+
+      // Get the port message listener
+      const portMessageListener = mockIpcRenderer.on.mock.calls.find(
+        (call: any[]) => call[0] === DIRECT_IPC_CHANNELS.PORT_MESSAGE
+      )?.[1]
+
+      // Start the send with SharedArrayBuffer
+      const sharedBuffer = new SharedArrayBuffer(1024)
+      const sendPromise = directIpc.send(
+        { identifier: 'target' },
+        'shared-buffer-message',
+        sharedBuffer
+      )
+
+      // Simulate port arrival
+      portMessageListener(
+        { ports: [mockPort] },
+        {
+          sender: {
+            id: 11,
+            webContentsId: 11,
+            url: 'https://target.com',
+            identifier: 'target',
+            processType: 'renderer',
+          },
+        }
+      )
+
+      await sendPromise
+
+      // Verify postMessage was called without transfer list
+      // SharedArrayBuffer is automatically shared via structured clone
+      expect(mockPort.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'shared-buffer-message',
+          args: [sharedBuffer],
+        })
+      )
+    })
+
+    it('should handle send without transfer option (normal behavior)', async () => {
+      const mockPort = createMockMessagePort()
+
+      // Get the port message listener
+      const portMessageListener = mockIpcRenderer.on.mock.calls.find(
+        (call: any[]) => call[0] === DIRECT_IPC_CHANNELS.PORT_MESSAGE
+      )?.[1]
+
+      // Start normal send
+      const sendPromise = directIpc.send({ identifier: 'target' }, 'normal-message', 'arg1', 'arg2')
+
+      // Simulate port arrival
+      portMessageListener(
+        { ports: [mockPort] },
+        {
+          sender: {
+            id: 12,
+            webContentsId: 12,
+            url: 'https://target.com',
+            identifier: 'target',
+            processType: 'renderer',
+          },
+        }
+      )
+
+      await sendPromise
+
+      // Verify postMessage was called without transfer list
+      expect(mockPort.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'normal-message',
+          args: ['arg1', 'arg2'],
+        })
+      )
+    })
+  })
+
   describe('Port caching with identifier resolution', () => {
     it('should use cached port when requesting by identifier after initial connection', async () => {
       // Set up the map with a target that has an identifier

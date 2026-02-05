@@ -290,10 +290,12 @@ describe('Message Queue', () => {
             expect(getQueue()).toHaveLength(0)
 
             // Verify message was sent directly
+            // Note: 4th parameter is the transfer list (undefined when not used)
             expect(sendSpy).toHaveBeenCalledWith(
               expect.objectContaining({ identifier: 'target' }),
               'test-message',
-              ['arg']
+              ['arg'],
+              undefined
             )
 
             sendSpy.mockRestore()

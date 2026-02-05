@@ -16,6 +16,7 @@ import {
   InvokeResponse,
   DirectIpcBase,
   CachedPort,
+  SendOptions,
 } from '../common/index.js'
 import { DirectIpcLogger, consoleLogger } from '../common/DirectIpcLogger.js'
 import { DirectIpcUtilityThrottled } from './DirectIpcUtilityThrottled.js'
@@ -46,6 +47,8 @@ export interface QueuedMessage {
   args: unknown[]
   throttled: boolean
   timestamp: number
+  /** Optional transfer list for zero-copy buffer transfers */
+  transfer?: Transferable[]
 }
 
 /**
@@ -173,9 +176,21 @@ export class DirectIpcUtility<
 
   /**
    * Send message via a MessagePortMain
+   * @param port - The MessagePortMain to send through
+   * @param message - The message to send
+   * @param transfer - Optional array of transferable objects for zero-copy transfer
    */
-  protected postMessageToPort(port: Electron.MessagePortMain, message: unknown): void {
-    port.postMessage(message)
+  protected postMessageToPort(
+    port: Electron.MessagePortMain,
+    message: unknown,
+    transfer?: Transferable[]
+  ): void {
+    if (transfer && transfer.length > 0) {
+      // MessagePortMain.postMessage accepts transfer list as second parameter
+      port.postMessage(message, transfer as unknown as Electron.MessagePortMain[])
+    } else {
+      port.postMessage(message)
+    }
   }
 
   /**
@@ -507,8 +522,11 @@ export class DirectIpcUtility<
 
     for (const queuedMsg of queue) {
       try {
+        const argsWithOptions = queuedMsg.transfer
+          ? [...queuedMsg.args, { transfer: queuedMsg.transfer }]
+          : queuedMsg.args
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (this.send as any)(queuedMsg.target, queuedMsg.message, ...queuedMsg.args)
+        await (this.send as any)(queuedMsg.target, queuedMsg.message, ...argsWithOptions)
       } catch (error) {
         this.log.error?.(
           `DirectIpcUtility::flushMessageQueue - Error flushing message "${queuedMsg.message}":`,
@@ -520,12 +538,27 @@ export class DirectIpcUtility<
 
   /**
    * Send a message to another process
+   *
+   * @example
+   * // Simple message
+   * await utility.send({ identifier: 'renderer' }, 'update', data)
+   *
+   * // With ArrayBuffer transfer (zero-copy, buffer becomes unusable in sender)
+   * const buffer = new ArrayBuffer(1024)
+   * await utility.send({ identifier: 'renderer' }, 'buffer-data', buffer, { transfer: [buffer] })
+   *
+   * // With SharedArrayBuffer (shared memory)
+   * const sharedBuffer = new SharedArrayBuffer(1024)
+   * await utility.send({ identifier: 'renderer' }, 'shared-data', sharedBuffer)
    */
   public async send<K extends keyof TMessageMap>(
     target: TargetSelector<TIdentifierStrings>,
     message: K,
-    ...args: Parameters<TMessageMap[K]>
+    ...argsAndOptions: [...Parameters<TMessageMap[K]>, SendOptions?]
   ): Promise<void> {
+    // Extract SendOptions from args if present
+    const { args, options } = this.extractSendOptions(argsAndOptions)
+
     // Queue message if not registered yet
     if (this.registrationState !== RegistrationState.REGISTERED) {
       this.log.debug?.(
@@ -537,6 +570,7 @@ export class DirectIpcUtility<
         args,
         throttled: false,
         timestamp: Date.now(),
+        transfer: options?.transfer,
       })
       return
     }
@@ -551,8 +585,36 @@ export class DirectIpcUtility<
     // Send to each target
     for (const t of targets) {
       this.log.debug?.(`DirectIpcUtility::send - Calling sendToTarget for ${t.identifier || t.id}`)
-      await this.sendToTarget(t, message, args)
+      await this.sendToTarget(t, message, args, options?.transfer)
     }
+  }
+
+  /**
+   * Extract SendOptions from the args array if present
+   */
+  private extractSendOptions(args: unknown[]): {
+    args: unknown[]
+    options?: SendOptions
+  } {
+    if (args.length === 0) {
+      return { args }
+    }
+
+    const lastArg = args[args.length - 1]
+    const isSendOptions =
+      lastArg != null &&
+      typeof lastArg === 'object' &&
+      !Array.isArray(lastArg) &&
+      'transfer' in lastArg
+
+    if (isSendOptions) {
+      return {
+        args: args.slice(0, -1),
+        options: lastArg as SendOptions,
+      }
+    }
+
+    return { args }
   }
 
   /**
@@ -561,7 +623,8 @@ export class DirectIpcUtility<
   private async sendToTarget<K extends keyof TMessageMap>(
     target: DirectIpcTarget,
     message: K,
-    args: Parameters<TMessageMap[K]>
+    args: Parameters<TMessageMap[K]>,
+    transfer?: Transferable[]
   ): Promise<void> {
     const targetId = this.getPortCacheKey(target)
 
@@ -591,7 +654,7 @@ export class DirectIpcUtility<
       `DirectIpcUtility::sendToTarget - Sending message "${String(message)}" to ${targetId}`
     )
 
-    cachedPort.port.postMessage(messageData)
+    this.postMessageToPort(cachedPort.port, messageData, transfer)
   }
 
   /**

@@ -87,6 +87,20 @@ export type DirectIpcMessage<
 > = {
   message: K
   args: Parameters<TMessageMap[K]>
+  /** Optional list of ArrayBuffers to transfer (zero-copy) */
+  transfer?: ArrayBuffer[]
+}
+
+/**
+ * Options for send operations
+ */
+export interface SendOptions {
+  /**
+   * List of transferable objects (ArrayBuffer, MessagePort, etc.) to transfer ownership.
+   * After transfer, the original buffer becomes unusable in the sender.
+   * Use this for large buffers when you don't need them in the sender anymore.
+   */
+  transfer?: Transferable[]
 }
 
 /**
