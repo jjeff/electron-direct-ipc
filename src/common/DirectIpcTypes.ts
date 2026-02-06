@@ -87,8 +87,6 @@ export type DirectIpcMessage<
 > = {
   message: K
   args: Parameters<TMessageMap[K]>
-  /** Optional list of ArrayBuffers to transfer (zero-copy) */
-  transfer?: ArrayBuffer[]
 }
 
 /**

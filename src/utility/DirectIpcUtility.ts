@@ -178,19 +178,19 @@ export class DirectIpcUtility<
    * Send message via a MessagePortMain
    * @param port - The MessagePortMain to send through
    * @param message - The message to send
-   * @param transfer - Optional array of transferable objects for zero-copy transfer
+   * @param _transfer - Transfer list (note: MessagePortMain only supports MessagePortMain transfers,
+   *                    not ArrayBuffer. ArrayBuffers are cloned via structured clone algorithm)
    */
   protected postMessageToPort(
     port: Electron.MessagePortMain,
     message: unknown,
-    transfer?: Transferable[]
+    _transfer?: Transferable[]
   ): void {
-    if (transfer && transfer.length > 0) {
-      // MessagePortMain.postMessage accepts transfer list as second parameter
-      port.postMessage(message, transfer as unknown as Electron.MessagePortMain[])
-    } else {
-      port.postMessage(message)
-    }
+    // Note: Electron's MessagePortMain.postMessage() only accepts MessagePortMain[] as transfer list,
+    // not general Transferable objects like ArrayBuffer. ArrayBuffers in the message will be
+    // automatically handled by the structured clone algorithm (copied, not transferred).
+    // SharedArrayBuffers are shared automatically without needing a transfer list.
+    port.postMessage(message)
   }
 
   /**
@@ -604,11 +604,15 @@ export class DirectIpcUtility<
     }
 
     const lastArg = args[args.length - 1]
+    // Check if lastArg is a SendOptions object:
+    // - Must be a non-null object (not an array)
+    // - Must have a 'transfer' property that is an array
     const isSendOptions =
       lastArg != null &&
       typeof lastArg === 'object' &&
       !Array.isArray(lastArg) &&
-      'transfer' in lastArg
+      'transfer' in lastArg &&
+      Array.isArray((lastArg as { transfer?: unknown }).transfer)
 
     if (isSendOptions) {
       return {

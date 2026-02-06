@@ -698,11 +698,15 @@ export class DirectIpcRenderer<
     }
 
     const lastArg = args[args.length - 1]
+    // Check if lastArg is a SendOptions object:
+    // - Must be a non-null object (not an array)
+    // - Must have a 'transfer' property that is an array
     const isSendOptions =
       lastArg != null &&
       typeof lastArg === 'object' &&
       !Array.isArray(lastArg) &&
-      'transfer' in lastArg
+      'transfer' in lastArg &&
+      Array.isArray((lastArg as { transfer?: unknown }).transfer)
 
     if (isSendOptions) {
       return {

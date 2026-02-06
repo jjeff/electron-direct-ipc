@@ -188,6 +188,25 @@ describe('SharedBufferUtils', () => {
       const sharedView = new Int32Array(shared)
       expect(Array.from(sharedView)).toEqual([100, 200, 300])
     })
+
+    it('should respect view boundaries (byteOffset and byteLength)', () => {
+      // Create a buffer with more data than we'll use
+      const fullBuffer = new ArrayBuffer(16)
+      const fullView = new Uint8Array(fullBuffer)
+      fullView.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+
+      // Create a view that only sees bytes 4-7 (4 bytes starting at offset 4)
+      const partialView = new Uint8Array(fullBuffer, 4, 4)
+
+      // Copy only the partial view
+      const shared = copyToSharedBuffer(partialView)
+
+      // Should only have 4 bytes, not 16
+      expect(shared.byteLength).toBe(4)
+
+      const sharedView = new Uint8Array(shared)
+      expect(Array.from(sharedView)).toEqual([4, 5, 6, 7])
+    })
   })
 
   describe('extractTransferables', () => {
@@ -230,6 +249,22 @@ describe('SharedBufferUtils', () => {
       expect(transferables).toHaveLength(2)
       expect(transferables).toContain(buffer1)
       expect(transferables).toContain(buffer2)
+    })
+
+    it('should deduplicate buffers when multiple views share the same underlying buffer', () => {
+      // Create one buffer with multiple views
+      const sharedBuffer = new ArrayBuffer(32)
+      const view1 = new Uint8Array(sharedBuffer, 0, 16)
+      const view2 = new Uint8Array(sharedBuffer, 16, 16)
+      const view3 = new Int32Array(sharedBuffer, 0, 4)
+
+      const message = { view1, view2, view3 }
+
+      const transferables = extractTransferables(message)
+
+      // Should only have 1 buffer (deduplicated), not 3
+      expect(transferables).toHaveLength(1)
+      expect(transferables[0]).toBe(sharedBuffer)
     })
 
     it('should handle arrays', () => {

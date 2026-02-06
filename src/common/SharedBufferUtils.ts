@@ -13,32 +13,6 @@
  */
 
 /**
- * Options for creating a shared buffer
- */
-export interface SharedBufferOptions {
-  /** Size in bytes */
-  byteLength: number
-  /** Optional initial data to copy into the buffer */
-  initialData?: ArrayBufferView | number[]
-}
-
-/**
- * Typed array constructors that can be used with SharedArrayBuffer
- */
-export type TypedArrayConstructor =
-  | Int8ArrayConstructor
-  | Uint8ArrayConstructor
-  | Uint8ClampedArrayConstructor
-  | Int16ArrayConstructor
-  | Uint16ArrayConstructor
-  | Int32ArrayConstructor
-  | Uint32ArrayConstructor
-  | Float32ArrayConstructor
-  | Float64ArrayConstructor
-  | BigInt64ArrayConstructor
-  | BigUint64ArrayConstructor
-
-/**
  * Union of all typed array types
  */
 export type TypedArray =
@@ -66,20 +40,6 @@ export interface SharedBufferHandle<T extends TypedArray = Uint8Array> {
   byteLength: number
   /** Type of the view (e.g., 'Int32Array', 'Float64Array') */
   viewType: string
-}
-
-/**
- * Message containing SharedArrayBuffer data
- */
-export interface SharedBufferMessage {
-  /** The shared buffer */
-  buffer: SharedArrayBuffer
-  /** Byte offset in the buffer (for views) */
-  byteOffset?: number
-  /** Byte length of the data */
-  byteLength?: number
-  /** Type of typed array to use for the view */
-  viewType?: string
 }
 
 /**
@@ -197,13 +157,19 @@ export function createViewOfSharedBuffer<T extends TypedArray>(
 }
 
 /**
- * Copy data from a regular ArrayBuffer to a SharedArrayBuffer
- * @param source - Source ArrayBuffer or TypedArray
+ * Copy data from a regular ArrayBuffer or ArrayBufferView to a SharedArrayBuffer
+ * @param source - Source ArrayBuffer or TypedArray/DataView
  * @returns A new SharedArrayBuffer with the copied data
  */
 export function copyToSharedBuffer(source: ArrayBuffer | ArrayBufferView): SharedArrayBuffer {
-  const sourceBytes =
-    source instanceof ArrayBuffer ? new Uint8Array(source) : new Uint8Array(source.buffer)
+  let sourceBytes: Uint8Array
+
+  if (source instanceof ArrayBuffer) {
+    sourceBytes = new Uint8Array(source)
+  } else {
+    // Respect view boundaries (byteOffset and byteLength)
+    sourceBytes = new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+  }
 
   const sharedBuffer = createSharedBuffer(sourceBytes.byteLength)
   const destBytes = new Uint8Array(sharedBuffer)
@@ -217,7 +183,7 @@ export function copyToSharedBuffer(source: ArrayBuffer | ArrayBufferView): Share
  * Extract transferable objects from a message for use with postMessage transfer list
  * This recursively finds ArrayBuffer instances in the message
  * @param message - The message to scan
- * @returns Array of transferable objects found
+ * @returns Array of transferable objects found (deduplicated)
  */
 export function extractTransferables(message: unknown): Transferable[] {
   const transferables: Transferable[] = []
@@ -233,7 +199,9 @@ export function extractTransferables(message: unknown): Transferable[] {
 
     // Check if this is a transferable
     if (isTransferable(obj)) {
-      transferables.push(obj)
+      if (!transferables.includes(obj)) {
+        transferables.push(obj)
+      }
       return
     }
 
@@ -243,7 +211,7 @@ export function extractTransferables(message: unknown): Transferable[] {
     // Scan typed arrays for their underlying buffer
     if (ArrayBuffer.isView(obj)) {
       const view = obj as ArrayBufferView
-      if (view.buffer instanceof ArrayBuffer) {
+      if (view.buffer instanceof ArrayBuffer && !transferables.includes(view.buffer)) {
         transferables.push(view.buffer)
       }
       return
@@ -270,9 +238,11 @@ export function extractTransferables(message: unknown): Transferable[] {
 /**
  * Atomics helper - Use Atomics for thread-safe operations on shared memory
  *
- * Note: Atomics operations only work with Int8Array, Uint8Array, Int16Array,
- * Uint16Array, Int32Array, Uint32Array, BigInt64Array, and BigUint64Array
- * backed by SharedArrayBuffer.
+ * Note: These wrapper methods only support Int32Array, Uint32Array, BigInt64Array,
+ * and BigUint64Array backed by SharedArrayBuffer. While the native Atomics API
+ * supports additional types (Int8Array, Uint8Array, Int16Array, Uint16Array),
+ * this wrapper focuses on the most commonly used types for inter-process
+ * synchronization.
  */
 export const SharedAtomics = {
   /**
