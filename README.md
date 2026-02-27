@@ -22,6 +22,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
 - 📡 **Event-Driven** - Built on EventEmitter with automatic lifecycle management
 - 📦 **Dual Format** - Works with both ESM (`import`) and CommonJS (`require`)
 - 🔧 **Utility Process Support** - Full communication with Electron UtilityProcess workers
+- 🔀 **SharedArrayBuffer Support** - True shared memory and zero-copy ArrayBuffer transfers
 - 🧪 **Well Tested** - Comprehensive unit, integration, and E2E tests with full coverage
 
 ## Table of Contents
@@ -34,6 +35,7 @@ Electron Direct IPC provides direct renderer-to-renderer communication via Messa
   - [DirectIpcThrottled](#directipcthrottled)
   - [DirectIpcMain](#directipcmain)
   - [DirectIpcUtility](#directipcutility)
+- [SharedArrayBuffer & Transfers](#sharedarraybuffer--transfers)
 - [Usage Patterns](#usage-patterns)
 - [Performance Guide](#performance-guide)
 - [Testing](#testing)
@@ -585,6 +587,182 @@ DirectIpcUtility goes through a registration lifecycle when starting:
 | `failed`        | Registration timed out or failed                         |
 
 Messages sent before registration completes are automatically queued and flushed once registered.
+
+## SharedArrayBuffer & Transfers
+
+DirectIPC supports both **SharedArrayBuffer** (true shared memory) and **ArrayBuffer transfers** (zero-copy ownership transfer) for high-performance binary data communication.
+
+### When to Use
+
+| Feature | Use Case | Behavior |
+|---------|----------|----------|
+| **SharedArrayBuffer** | Real-time audio/video, shared state | Both processes can read/write the same memory |
+| **ArrayBuffer Transfer** | Large one-time data, image processing | Zero-copy, but sender loses access |
+| **Normal send** | Small data, JSON-serializable | Deep copy (structured clone) |
+
+### SharedArrayBuffer (Shared Memory)
+
+SharedArrayBuffer allows multiple processes to access the same memory region. Perfect for real-time audio processing, video frames, or shared state.
+
+```typescript
+import {
+  createSharedTypedArray,
+  createSharedBufferFrom,
+  SharedAtomics
+} from 'electron-direct-ipc'
+
+// Create a shared buffer with typed array view
+const audioBuffer = createSharedTypedArray(Float32Array, 4096)
+
+// Send to another process - both can now read/write!
+await directIpc.send({ identifier: 'audio-processor' }, 'audio-buffer', audioBuffer.buffer)
+
+// Receiver creates a view of the same memory
+directIpc.on('audio-buffer', (sender, buffer: SharedArrayBuffer) => {
+  const samples = new Float32Array(buffer)
+  // Modifications here are visible to the sender!
+  samples[0] = 1.0
+})
+```
+
+**Atomic Operations for Thread Safety:**
+
+```typescript
+import { createSharedTypedArray, SharedAtomics } from 'electron-direct-ipc'
+
+// Create shared counter
+const counter = createSharedTypedArray(Int32Array, 1)
+
+// Atomically increment (safe for concurrent access)
+const oldValue = SharedAtomics.add(counter.view, 0, 1)
+
+// Compare-and-swap pattern
+const current = SharedAtomics.compareExchange(counter.view, 0, expectedValue, newValue)
+
+// Wait for value to change (in utility process)
+const result = SharedAtomics.wait(counter.view, 0, expectedValue, 1000) // timeout in ms
+```
+
+**Important:** SharedArrayBuffer requires specific security headers:
+```typescript
+// In your main process when creating windows:
+const win = new BrowserWindow({
+  webPreferences: {
+    contextIsolation: true,
+    // Enable SharedArrayBuffer
+  }
+})
+
+// Set required headers
+win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+  callback({
+    responseHeaders: {
+      ...details.responseHeaders,
+      'Cross-Origin-Opener-Policy': ['same-origin'],
+      'Cross-Origin-Embedder-Policy': ['require-corp']
+    }
+  })
+})
+```
+
+### ArrayBuffer Transfer (Zero-Copy)
+
+For large buffers where you don't need shared access, transfer ownership for zero-copy performance:
+
+```typescript
+// Create a large buffer
+const imageData = new ArrayBuffer(1920 * 1080 * 4) // 8MB RGBA image
+
+// Transfer ownership - zero copy, but buffer becomes unusable in sender
+await directIpc.send(
+  { identifier: 'image-processor' },
+  'process-image',
+  imageData,
+  { transfer: [imageData] }
+)
+
+// imageData is now detached and unusable here!
+console.log(imageData.byteLength) // 0
+
+// Receiver gets full ownership
+directIpc.on('process-image', (sender, buffer: ArrayBuffer) => {
+  console.log(buffer.byteLength) // 8294400
+  // Process the image...
+})
+```
+
+### SharedBufferUtils API
+
+```typescript
+import {
+  // Check availability
+  isSharedArrayBufferAvailable,
+  isSharedArrayBuffer,
+  isTransferable,
+
+  // Create shared buffers
+  createSharedBuffer,           // Create raw SharedArrayBuffer
+  createSharedTypedArray,       // Create with typed array view
+  createSharedBufferFrom,       // Copy existing typed array to shared
+  copyToSharedBuffer,           // Copy ArrayBuffer to SharedArrayBuffer
+
+  // Create views
+  createViewOfSharedBuffer,     // Create typed view of existing buffer
+
+  // Helpers
+  extractTransferables,         // Find all transferables in a message
+
+  // Atomic operations
+  SharedAtomics                 // Thread-safe operations
+} from 'electron-direct-ipc'
+```
+
+### Pattern: Real-Time Audio Processing
+
+```typescript
+// Main audio renderer
+const audioBuffer = createSharedTypedArray(Float32Array, 4096)
+
+// Share with audio processor utility
+await directIpc.send({ identifier: 'audio-processor' }, 'set-buffer', audioBuffer.buffer)
+
+// Audio processor utility
+directIpc.on('set-buffer', (sender, buffer: SharedArrayBuffer) => {
+  const samples = new Float32Array(buffer)
+
+  // Process audio in real-time
+  setInterval(() => {
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = samples[i] * 0.5 // Apply gain
+    }
+  }, 10)
+})
+```
+
+### Pattern: Progress Counter with Atomics
+
+```typescript
+// Create shared progress counter
+const progress = createSharedTypedArray(Int32Array, 1)
+
+// Send to worker
+await directIpc.send({ identifier: 'worker' }, 'start-task', progress.buffer)
+
+// Worker updates progress atomically
+directIpc.on('start-task', async (sender, buffer: SharedArrayBuffer) => {
+  const counter = new Int32Array(buffer)
+  for (let i = 0; i <= 100; i++) {
+    SharedAtomics.store(counter, 0, i)
+    await doWork()
+  }
+})
+
+// Main process reads progress
+setInterval(() => {
+  const currentProgress = SharedAtomics.load(progress.view, 0)
+  updateProgressBar(currentProgress)
+}, 100)
+```
 
 ## Usage Patterns
 

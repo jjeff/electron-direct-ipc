@@ -8,6 +8,7 @@ import {
   InvokeMap,
   Prettify,
   InvokeOptions,
+  SendOptions,
   TargetSelector,
   DirectIpcMessage,
   InvokeMessage,
@@ -184,9 +185,20 @@ export class DirectIpcRenderer<
 
   /**
    * Send message via a MessagePort
+   * @param port - The MessagePort to send through
+   * @param message - The message to send
+   * @param transfer - Optional array of transferable objects for zero-copy transfer
    */
-  protected postMessageToPort(port: MessagePort, message: unknown): void {
-    port.postMessage(message)
+  protected postMessageToPort(
+    port: MessagePort,
+    message: unknown,
+    transfer?: Transferable[]
+  ): void {
+    if (transfer && transfer.length > 0) {
+      port.postMessage(message, transfer)
+    } else {
+      port.postMessage(message)
+    }
   }
 
   /**
@@ -604,13 +616,27 @@ export class DirectIpcRenderer<
    *
    * // Send to all matching URLs
    * await directIpc.send({ allUrls: 'https://example.com' }, 'my-message', arg1, arg2)
+   *
+   * // Send with ArrayBuffer transfer (zero-copy, buffer becomes unusable in sender)
+   * const buffer = new ArrayBuffer(1024)
+   * await directIpc.send({ identifier: 'output' }, 'buffer-message', buffer, { transfer: [buffer] })
+   *
+   * // Send with SharedArrayBuffer (shared memory, both processes can access)
+   * const sharedBuffer = new SharedArrayBuffer(1024)
+   * await directIpc.send({ identifier: 'output' }, 'shared-buffer', sharedBuffer)
    */
   async send<T extends keyof TMessageMap>(
     target: TargetSelector<TIdentifierStrings>,
     message: T,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 'any' used in conditional type for parameter extraction
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
+
+    ...argsAndOptions: [
+      ...(TMessageMap[T] extends (...args: infer P) => any ? P : never),
+      SendOptions?,
+    ]
   ): Promise<void> {
+    // Extract SendOptions if present as the last argument
+    const { args, options } = this.extractSendOptions(argsAndOptions)
+
     // Handle "all" patterns - these require targets to exist in the map
     if ('allIdentifiers' in target || 'allUrls' in target) {
       const targets = this.findTargets(target)
@@ -629,7 +655,7 @@ export class DirectIpcRenderer<
           if (t.webContentsId !== undefined) {
             const port = await this.getPort({ webContentsId: t.webContentsId })
             if (port) {
-              port.postMessage({ message, args })
+              this.postMessageToPort(port, { message, args }, options?.transfer)
             }
           }
         })
@@ -656,8 +682,40 @@ export class DirectIpcRenderer<
 
     const port = await this.getPort(selector)
     if (port) {
-      port.postMessage({ message, args })
+      this.postMessageToPort(port, { message, args }, options?.transfer)
     }
+  }
+
+  /**
+   * Extract SendOptions from the args array if present
+   */
+  private extractSendOptions(args: unknown[]): {
+    args: unknown[]
+    options?: SendOptions
+  } {
+    if (args.length === 0) {
+      return { args }
+    }
+
+    const lastArg = args[args.length - 1]
+    // Check if lastArg is a SendOptions object:
+    // - Must be a non-null object (not an array)
+    // - Must have a 'transfer' property that is an array
+    const isSendOptions =
+      lastArg != null &&
+      typeof lastArg === 'object' &&
+      !Array.isArray(lastArg) &&
+      'transfer' in lastArg &&
+      Array.isArray((lastArg as { transfer?: unknown }).transfer)
+
+    if (isSendOptions) {
+      return {
+        args: args.slice(0, -1),
+        options: lastArg as SendOptions,
+      }
+    }
+
+    return { args }
   }
 
   /**

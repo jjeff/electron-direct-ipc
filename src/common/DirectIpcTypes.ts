@@ -90,6 +90,18 @@ export type DirectIpcMessage<
 }
 
 /**
+ * Options for send operations
+ */
+export interface SendOptions {
+  /**
+   * List of transferable objects (ArrayBuffer, MessagePort, etc.) to transfer ownership.
+   * After transfer, the original buffer becomes unusable in the sender.
+   * Use this for large buffers when you don't need them in the sender anymore.
+   */
+  transfer?: Transferable[]
+}
+
+/**
  * Message format for invoke/handle pattern
  */
 export type InvokeMessage = {

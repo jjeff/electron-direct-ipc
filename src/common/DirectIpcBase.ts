@@ -106,8 +106,15 @@ export abstract class DirectIpcBase<
   /**
    * Send message via a port
    * Different port types have different APIs
+   * @param port - The port to send the message through
+   * @param message - The message to send
+   * @param transfer - Optional array of transferable objects (ArrayBuffer, MessagePort, etc.)
    */
-  protected abstract postMessageToPort(port: TPort, message: unknown): void
+  protected abstract postMessageToPort(
+    port: TPort,
+    message: unknown,
+    transfer?: Transferable[]
+  ): void
 
   /**
    * Set up message listener on a port
@@ -149,8 +156,7 @@ export abstract class DirectIpcBase<
   public abstract send<T extends keyof TMessageMap>(
     target: TargetSelector<TIdentifierStrings>,
     message: T,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 'any' used in conditional type for parameter extraction
-    ...args: TMessageMap[T] extends (...args: infer P) => any ? P : never
+    ...args: unknown[]
   ): Promise<void>
 
   /**
