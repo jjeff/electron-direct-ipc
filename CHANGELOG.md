@@ -1,3 +1,9 @@
+## [2.4.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.3.0...v2.4.0) (2026-02-27)
+
+### Features
+
+* Add SharedArrayBuffer and ArrayBuffer transfer support ([#14](https://github.com/jjeff/electron-direct-ipc/issues/14)) ([a90a4db](https://github.com/jjeff/electron-direct-ipc/commit/a90a4dbcb9b8d56ff580f9b443308dfc566cba4e))
+
 ## [2.3.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.2.3...v2.3.0) (2025-12-30)
 
 ### Features
