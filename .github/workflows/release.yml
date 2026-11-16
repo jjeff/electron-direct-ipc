@@ -29,9 +29,11 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      # npm trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships npm 10
+      # npm trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships npm 10.
+      # Stay on 11: npm 12 blocks dependency install scripts (electron's
+      # postinstall) unless they are listed in allowScripts.
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g 'npm@^11.5.1'
 
       - name: Install dependencies
         run: npm ci
