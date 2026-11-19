@@ -188,34 +188,39 @@ export class DirectIpcMain {
       `DirectIpcMain::handleSubscribe - webContentsId: ${webContentsId}, identifier: ${identifier}, url: ${this.truncatedUrl(url)}`
     )
 
-    // Get or assign process ID for this renderer
-    let processId = this.webContentsIdMap.get(webContentsId)
-    const wasAlreadyRegistered = processId !== undefined
+    const oldProcessId = this.webContentsIdMap.get(webContentsId)
+    const wasAlreadyRegistered = oldProcessId !== undefined
 
-    if (!processId) {
-      processId = this.nextProcessId++
-      this.webContentsIdMap.set(webContentsId, processId)
-    }
-
-    // Check for identifier conflict
+    // Check for identifier conflict (before changing any state)
     if (identifier) {
       const existingId = this.identifierMap.get(identifier)
-      if (existingId !== undefined && existingId !== processId) {
+      if (existingId !== undefined && existingId !== oldProcessId) {
         throw new Error(
           `DirectIpc identifier "${identifier}" is already in use by process ${existingId}`
         )
       }
     }
 
-    // If this renderer is re-subscribing (e.g., after a reload), clear all channel pairs
-    // involving it, since the old MessagePorts are now invalid
-    if (wasAlreadyRegistered) {
+    // A renderer re-subscribing (e.g. after a reload or crash) has a new JS context,
+    // so every MessagePort to the old one is dead. Retire the old process ID and
+    // assign a fresh one: other renderers then see the old target removed (closing
+    // their cached port) and a new one added, instead of keeping a dead port cached
+    // under an ID that never changed.
+    if (oldProcessId !== undefined) {
       const identifierStr = identifier ? `"${identifier}"` : `#${webContentsId}`
       this.d.log.silly?.(
-        `DirectIpcMain::handleSubscribe - Renderer ${identifierStr} re-subscribing, clearing channel pairs`
+        `DirectIpcMain::handleSubscribe - Renderer ${identifierStr} re-subscribing, retiring process ${oldProcessId}`
       )
-      this.clearChannelPairsForProcess(processId)
+      const oldTarget = this.registry.get(oldProcessId)
+      if (oldTarget?.identifier && this.identifierMap.get(oldTarget.identifier) === oldProcessId) {
+        this.identifierMap.delete(oldTarget.identifier)
+      }
+      this.registry.delete(oldProcessId)
+      this.clearChannelPairsForProcess(oldProcessId)
     }
+
+    const processId = this.nextProcessId++
+    this.webContentsIdMap.set(webContentsId, processId)
 
     // Register this renderer
     const targetInfo: DirectIpcTarget = {

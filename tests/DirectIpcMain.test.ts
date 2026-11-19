@@ -276,3 +276,63 @@ describe('DirectIpcMain - Utility Process Support', () => {
     })
   })
 })
+
+describe('DirectIpcMain - renderer re-subscribe after reload', () => {
+  let directIpcMain: DirectIpcMain
+
+  const fakeSender = (id: number) =>
+    ({
+      id,
+      getURL: () => `app://window-${id}`,
+      on: vi.fn(),
+      isDestroyed: () => false,
+      send: vi.fn(),
+    }) as any
+
+  beforeEach(() => {
+    ;(DirectIpcMain as any)._instance = null
+    vi.spyOn(DirectIpcMain as any, 'isMainProcess').mockReturnValue(true)
+    directIpcMain = DirectIpcMain.instance()
+  })
+
+  afterEach(() => {
+    ;(DirectIpcMain as any)._instance = null
+  })
+
+  it('gives a re-subscribing renderer a new process id so peers drop their cached port', () => {
+    const subscribe = (sender: any, identifier?: string) =>
+      (directIpcMain as any).handleSubscribe(sender, identifier)
+    const controller = fakeSender(1)
+    const output = fakeSender(2)
+
+    subscribe(controller, 'controller')
+    const before = subscribe(output, 'output').find((t: any) => t.identifier === 'output')
+    ;(directIpcMain as any).channelPairs.set(
+      `${Math.min(1, before.id)}-${Math.max(1, before.id)}`,
+      {}
+    )
+
+    // Output reloads and subscribes again from the same webContents
+    const map = subscribe(output, 'output')
+    const outputs = map.filter((t: any) => t.identifier === 'output')
+
+    expect(outputs).toHaveLength(1)
+    expect(outputs[0].id).not.toBe(before.id)
+    expect(map.some((t: any) => t.id === before.id)).toBe(false)
+    expect((directIpcMain as any).identifierMap.get('output')).toBe(outputs[0].id)
+    expect((directIpcMain as any).channelPairs.size).toBe(0)
+    // Lifecycle listeners are attached once, not again on re-subscribe
+    expect(output.on.mock.calls.filter((c: any[]) => c[0] === 'destroyed')).toHaveLength(1)
+  })
+
+  it('still rejects an identifier held by another renderer, without retiring the caller', () => {
+    const subscribe = (sender: any, identifier?: string) =>
+      (directIpcMain as any).handleSubscribe(sender, identifier)
+    subscribe(fakeSender(1), 'controller')
+    const output = fakeSender(2)
+    const first = subscribe(output, 'output').find((t: any) => t.identifier === 'output')
+
+    expect(() => subscribe(output, 'controller')).toThrow(/already in use/)
+    expect((directIpcMain as any).registry.get(first.id)?.identifier).toBe('output')
+  })
+})
