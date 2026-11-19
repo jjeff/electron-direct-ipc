@@ -1,3 +1,9 @@
+## [2.4.1](https://github.com/jjeff/electron-direct-ipc/compare/v2.4.0...v2.4.1) (2026-11-19)
+
+### Bug Fixes
+
+* retire a renderer's process id when it re-subscribes after a reload ([#18](https://github.com/jjeff/electron-direct-ipc/issues/18)) ([1490a84](https://github.com/jjeff/electron-direct-ipc/commit/1490a84f1e85e3c43a282beb936ab8bfe36c12eb))
+
 ## [2.4.0](https://github.com/jjeff/electron-direct-ipc/compare/v2.3.0...v2.4.0) (2026-02-27)
 
 ### Features
